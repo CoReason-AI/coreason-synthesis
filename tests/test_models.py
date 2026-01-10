@@ -1,13 +1,16 @@
 # tests/test_models.py
 from uuid import uuid4
 
+import numpy as np
 import pytest
 from pydantic import ValidationError
 
 from coreason_synthesis.models import (
     Diff,
+    Document,
     ProvenanceType,
     SeedCase,
+    SynthesisTemplate,
     SyntheticJob,
     SyntheticTestCase,
 )
@@ -119,7 +122,7 @@ def test_synthetic_test_case_validation_error() -> None:
 
 def test_mixed_modifications_types() -> None:
     """Test mixed types in modifications list (Diff objects and strings)."""
-    diff_obj = Diff(description="Obj diff")
+    diff_obj = Diff(description="Obj diff", original="old", new="new")
     tc = SyntheticTestCase(
         verbatim_context="ctx",
         synthetic_question="q",
@@ -127,7 +130,7 @@ def test_mixed_modifications_types() -> None:
         expected_json={},
         provenance=ProvenanceType.SYNTHETIC_PERTURBED,
         source_urn="urn",
-        modifications=[diff_obj, "String diff", Diff(description="Another obj")],
+        modifications=[diff_obj, "String diff", Diff(description="Another obj", original="old2", new="new2")],
         complexity=5,
         diversity=0.5,
         validity_confidence=0.9,
@@ -216,7 +219,7 @@ def test_enum_validation() -> None:
             synthetic_question="q",
             golden_chain_of_thought="cot",
             expected_json={},
-            provenance="INVALID_PROVENANCE",
+            provenance="INVALID_PROVENANCE",  # type: ignore
             source_urn="urn",
             complexity=5,
             diversity=0.5,
@@ -228,3 +231,85 @@ def test_seed_case_string_expected_output() -> None:
     """Test SeedCase with string expected_output."""
     seed = SeedCase(id=uuid4(), context="ctx", question="q", expected_output="Just a string answer")
     assert seed.expected_output == "Just a string answer"
+
+
+# --- New Tests for Edge Cases & Complex Scenarios ---
+
+
+def test_document_creation() -> None:
+    """Test creation of Document model."""
+    doc = Document(content="Sample content", source_urn="http://example.com", metadata={"author": "Bot"})
+    assert doc.content == "Sample content"
+    assert doc.source_urn == "http://example.com"
+    assert doc.metadata["author"] == "Bot"
+
+
+def test_synthesis_template_creation() -> None:
+    """Test creation of SynthesisTemplate model."""
+    template = SynthesisTemplate(
+        structure="QA", complexity_description="Med", domain="Tech", embedding_centroid=[0.1, 0.2]
+    )
+    assert template.structure == "QA"
+    assert template.embedding_centroid == [0.1, 0.2]
+
+
+def test_synthesis_template_empty_centroid() -> None:
+    """Test SynthesisTemplate with None or empty centroid."""
+    # None
+    t1 = SynthesisTemplate(structure="S", complexity_description="C", domain="D", embedding_centroid=None)
+    assert t1.embedding_centroid is None
+
+    # Empty list
+    t2 = SynthesisTemplate(structure="S", complexity_description="C", domain="D", embedding_centroid=[])
+    assert t2.embedding_centroid == []
+
+
+def test_numpy_interop_for_centroid() -> None:
+    """
+    Test that SynthesisTemplate can handle numpy arrays for embedding_centroid.
+    Pydantic V2 should coerce iterable types (like np.array) to List[float] automatically.
+    """
+    arr = np.array([0.1, 0.5, 0.9], dtype=np.float64)
+    t = SynthesisTemplate(structure="S", complexity_description="C", domain="D", embedding_centroid=arr.tolist())
+
+    assert isinstance(t.embedding_centroid, list)
+    assert len(t.embedding_centroid) == 3
+    assert t.embedding_centroid[0] == 0.1
+
+
+def test_missing_required_fields() -> None:
+    """Ensure ValidationError is raised when required fields are missing."""
+    with pytest.raises(ValidationError):
+        Document(content="Only content")  # type: ignore # Missing source_urn
+
+    with pytest.raises(ValidationError):
+        SynthesisTemplate(structure="S")  # type: ignore # Missing other fields
+
+
+def test_document_empty_content() -> None:
+    """Test that empty strings are allowed (unless constraints added), ensuring system robustness."""
+    # Currently no min_length constraint, so this should pass.
+    # If we add constraints later, this test will fail and remind us to update constraints.
+    doc = Document(content="", source_urn="urn")
+    assert doc.content == ""
+
+
+def test_large_diff_list() -> None:
+    """Test performance/handling of a large list of modifications."""
+    from typing import List, Union
+
+    mods: List[Union[Diff, str]] = [Diff(description=f"Change {i}", original="a", new="b") for i in range(1000)]
+    tc = SyntheticTestCase(
+        verbatim_context="ctx",
+        synthetic_question="q",
+        golden_chain_of_thought="cot",
+        expected_json={},
+        provenance=ProvenanceType.SYNTHETIC_PERTURBED,
+        source_urn="urn",
+        modifications=mods,
+        complexity=5,
+        diversity=0.5,
+        validity_confidence=0.9,
+    )
+    assert len(tc.modifications) == 1000
+    assert tc.modifications[999].description == "Change 999"  # type: ignore

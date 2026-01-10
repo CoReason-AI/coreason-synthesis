@@ -39,6 +39,23 @@ class SyntheticJob(BaseModel):
     config: Dict[str, Any] = Field(..., description="Configuration for the job (e.g., perturbation_rate, target_count)")
 
 
+class Document(BaseModel):
+    """Represents a retrieved document from the Forager."""
+
+    content: str = Field(..., description="The full text content of the document")
+    source_urn: str = Field(..., description="Unique Resource Name or Source URL")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata (e.g., title, author)")
+
+
+class SynthesisTemplate(BaseModel):
+    """Represents the extracted pattern from SeedCases."""
+
+    structure: str = Field(..., description="Description of the question/output structure")
+    complexity_description: str = Field(..., description="Description of the complexity")
+    domain: str = Field(..., description="The identified domain of the seeds")
+    embedding_centroid: Optional[List[float]] = Field(None, description="The vector centroid of the seeds")
+
+
 class SyntheticTestCase(BaseModel):
     """Represents a generated synthetic test case."""
 
