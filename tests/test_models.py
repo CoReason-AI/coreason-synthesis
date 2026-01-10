@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.coreason_synthesis.models import (
+from coreason_synthesis.models import (
     Diff,
     ProvenanceType,
     SeedCase,

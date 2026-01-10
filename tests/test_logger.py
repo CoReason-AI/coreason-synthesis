@@ -1,4 +1,4 @@
-from src.coreason_synthesis.utils.logger import logger
+from coreason_synthesis.utils.logger import logger
 
 
 def test_logger_exists() -> None:
