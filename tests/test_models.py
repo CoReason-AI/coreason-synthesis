@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from src.coreason_synthesis.models import (
+from coreason_synthesis.models import (
     Diff,
     Document,
     ProvenanceType,

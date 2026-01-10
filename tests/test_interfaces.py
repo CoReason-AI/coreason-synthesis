@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.coreason_synthesis.interfaces import (
+from coreason_synthesis.interfaces import (
     Appraiser,
     Compositor,
     Extractor,
@@ -13,7 +13,7 @@ from src.coreason_synthesis.interfaces import (
     Perturbator,
     TeacherModel,
 )
-from src.coreason_synthesis.models import (
+from coreason_synthesis.models import (
     Document,
     ProvenanceType,
     SeedCase,
