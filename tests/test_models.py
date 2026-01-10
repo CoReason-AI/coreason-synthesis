@@ -198,13 +198,7 @@ def test_boundary_values() -> None:
 def test_serialization_roundtrip() -> None:
     """Test full JSON serialization and deserialization."""
     seed_id = uuid4()
-    seed = SeedCase(
-        id=seed_id,
-        context="ctx",
-        question="q",
-        expected_output={"a": 1},
-        metadata={"key": "val"}
-    )
+    seed = SeedCase(id=seed_id, context="ctx", question="q", expected_output={"a": 1}, metadata={"key": "val"})
 
     json_str = seed.model_dump_json()
     seed_restored = SeedCase.model_validate_json(json_str)
@@ -222,7 +216,7 @@ def test_enum_validation() -> None:
             synthetic_question="q",
             golden_chain_of_thought="cot",
             expected_json={},
-            provenance="INVALID_PROVENANCE",  # type: ignore
+            provenance="INVALID_PROVENANCE",
             source_urn="urn",
             complexity=5,
             diversity=0.5,
@@ -232,10 +226,5 @@ def test_enum_validation() -> None:
 
 def test_seed_case_string_expected_output() -> None:
     """Test SeedCase with string expected_output."""
-    seed = SeedCase(
-        id=uuid4(),
-        context="ctx",
-        question="q",
-        expected_output="Just a string answer"
-    )
+    seed = SeedCase(id=uuid4(), context="ctx", question="q", expected_output="Just a string answer")
     assert seed.expected_output == "Just a string answer"
