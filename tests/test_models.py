@@ -115,3 +115,127 @@ def test_synthetic_test_case_validation_error() -> None:
             diversity=1.1,  # Invalid: > 1
             validity_confidence=0.9,
         )
+
+
+def test_mixed_modifications_types() -> None:
+    """Test mixed types in modifications list (Diff objects and strings)."""
+    diff_obj = Diff(description="Obj diff")
+    tc = SyntheticTestCase(
+        verbatim_context="ctx",
+        synthetic_question="q",
+        golden_chain_of_thought="cot",
+        expected_json={},
+        provenance=ProvenanceType.SYNTHETIC_PERTURBED,
+        source_urn="urn",
+        modifications=[diff_obj, "String diff", Diff(description="Another obj")],
+        complexity=5,
+        diversity=0.5,
+        validity_confidence=0.9,
+    )
+    assert len(tc.modifications) == 3
+    assert isinstance(tc.modifications[0], Diff)
+    assert isinstance(tc.modifications[1], str)
+    assert isinstance(tc.modifications[2], Diff)
+
+
+def test_complex_json_structures() -> None:
+    """Test deeply nested and complex JSON structures."""
+    complex_json = {
+        "list": [1, 2, {"nested": "value"}],
+        "dict": {"a": 1, "b": None},
+        "bool": True,
+        "null": None,
+    }
+    tc = SyntheticTestCase(
+        verbatim_context="ctx",
+        synthetic_question="q",
+        golden_chain_of_thought="cot",
+        expected_json=complex_json,
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn",
+        complexity=5,
+        diversity=0.5,
+        validity_confidence=0.9,
+    )
+    assert tc.expected_json == complex_json
+
+    # Round trip check
+    dump = tc.model_dump()
+    assert dump["expected_json"] == complex_json
+
+
+def test_boundary_values() -> None:
+    """Test boundary values for metrics."""
+    # Test Min values
+    tc_min = SyntheticTestCase(
+        verbatim_context="ctx",
+        synthetic_question="q",
+        golden_chain_of_thought="cot",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn",
+        complexity=0.0,
+        diversity=0.0,
+        validity_confidence=0.0,
+    )
+    assert tc_min.complexity == 0.0
+
+    # Test Max values
+    tc_max = SyntheticTestCase(
+        verbatim_context="ctx",
+        synthetic_question="q",
+        golden_chain_of_thought="cot",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn",
+        complexity=10.0,
+        diversity=1.0,
+        validity_confidence=1.0,
+    )
+    assert tc_max.complexity == 10.0
+
+
+def test_serialization_roundtrip() -> None:
+    """Test full JSON serialization and deserialization."""
+    seed_id = uuid4()
+    seed = SeedCase(
+        id=seed_id,
+        context="ctx",
+        question="q",
+        expected_output={"a": 1},
+        metadata={"key": "val"}
+    )
+
+    json_str = seed.model_dump_json()
+    seed_restored = SeedCase.model_validate_json(json_str)
+
+    assert seed_restored == seed
+    assert seed_restored.id == seed_id
+    assert seed_restored.metadata["key"] == "val"
+
+
+def test_enum_validation() -> None:
+    """Test invalid enum values."""
+    with pytest.raises(ValidationError):
+        SyntheticTestCase(
+            verbatim_context="ctx",
+            synthetic_question="q",
+            golden_chain_of_thought="cot",
+            expected_json={},
+            provenance="INVALID_PROVENANCE",  # type: ignore
+            source_urn="urn",
+            complexity=5,
+            diversity=0.5,
+            validity_confidence=0.9,
+        )
+
+
+def test_seed_case_string_expected_output() -> None:
+    """Test SeedCase with string expected_output."""
+    seed = SeedCase(
+        id=uuid4(),
+        context="ctx",
+        question="q",
+        expected_output="Just a string answer"
+    )
+    assert seed.expected_output == "Just a string answer"
