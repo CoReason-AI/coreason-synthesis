@@ -16,12 +16,22 @@ __version__ = "0.1.0"
 __author__ = "Gowtham A Rao"
 __email__ = "gowtham.rao@coreason.ai"
 
-from .models import Diff, ProvenanceType, SeedCase, SyntheticJob, SyntheticTestCase
+from .models import (
+    Diff,
+    Document,
+    ProvenanceType,
+    SeedCase,
+    SynthesisTemplate,
+    SyntheticJob,
+    SyntheticTestCase,
+)
 
 __all__ = [
     "Diff",
+    "Document",
     "ProvenanceType",
     "SeedCase",
+    "SynthesisTemplate",
     "SyntheticJob",
     "SyntheticTestCase",
 ]

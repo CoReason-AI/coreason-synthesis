@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from coreason_synthesis.models import (
+from src.coreason_synthesis.models import (
     Diff,
     ProvenanceType,
     SeedCase,
@@ -119,7 +119,7 @@ def test_synthetic_test_case_validation_error() -> None:
 
 def test_mixed_modifications_types() -> None:
     """Test mixed types in modifications list (Diff objects and strings)."""
-    diff_obj = Diff(description="Obj diff")
+    diff_obj = Diff(description="Obj diff", original="old", new="new")
     tc = SyntheticTestCase(
         verbatim_context="ctx",
         synthetic_question="q",
@@ -127,7 +127,7 @@ def test_mixed_modifications_types() -> None:
         expected_json={},
         provenance=ProvenanceType.SYNTHETIC_PERTURBED,
         source_urn="urn",
-        modifications=[diff_obj, "String diff", Diff(description="Another obj")],
+        modifications=[diff_obj, "String diff", Diff(description="Another obj", original="old2", new="new2")],
         complexity=5,
         diversity=0.5,
         validity_confidence=0.9,
@@ -216,7 +216,7 @@ def test_enum_validation() -> None:
             synthetic_question="q",
             golden_chain_of_thought="cot",
             expected_json={},
-            provenance="INVALID_PROVENANCE",
+            provenance="INVALID_PROVENANCE",  # type: ignore
             source_urn="urn",
             complexity=5,
             diversity=0.5,
