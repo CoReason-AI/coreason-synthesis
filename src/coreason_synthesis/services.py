@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
 from .interfaces import TeacherModel
+from .models import Document
 
 
 class EmbeddingService(ABC):
@@ -40,6 +41,25 @@ class DummyEmbeddingService(EmbeddingService):
         # Explicitly cast to List[float] for mypy
         vector: List[float] = rng.random(self.dimension).tolist()
         return vector
+
+
+class MCPClient(ABC):
+    """Abstract interface for the Model Context Protocol (MCP) client."""
+
+    @abstractmethod
+    def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+        """
+        Searches the MCP for relevant documents using a vector query.
+
+        Args:
+            query_vector: The embedding vector to search with.
+            user_context: Context for RBAC (e.g., auth token).
+            limit: Maximum number of documents to retrieve.
+
+        Returns:
+            List of retrieved Documents.
+        """
+        pass
 
 
 class MockTeacher(TeacherModel):
