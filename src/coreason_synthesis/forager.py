@@ -124,8 +124,9 @@ class ForagerImpl(Forager):
                     best_mmr = mmr_score
                     best_idx = idx
 
-            if best_idx != -1:
-                selected_indices.append(best_idx)
-                candidate_indices.remove(best_idx)
+            # best_idx is guaranteed to be found because candidate_indices is never empty
+            # in this loop (loop runs min(limit, len) times).
+            selected_indices.append(best_idx)
+            candidate_indices.remove(best_idx)
 
         return [candidates[i] for i in selected_indices]
