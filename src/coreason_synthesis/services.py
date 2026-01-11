@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 import numpy as np
+from pydantic import BaseModel
 
 from .interfaces import TeacherModel
 from .models import Document
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class EmbeddingService(ABC):
@@ -76,3 +79,35 @@ class MockTeacher(TeacherModel):
                 "Domain: Oncology / Inclusion Criteria"
             )
         return "Mock generated response"
+
+    def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+        """
+        Returns a mock structured response based on the prompt content and response model.
+        """
+        # We need to construct a dummy instance of T.
+        # This is tricky without knowing the exact structure of T, but for our tests we know what T will be.
+        # However, to be generic in the mock, we can try to instantiate it with default values or known test values.
+
+        # Check if the response_model is one we expect
+        if "SynthesisTemplate" in response_model.__name__ or "TemplateAnalysis" in response_model.__name__:
+            # We can return a dict compatible with the expected fields, validated by the model
+            # Note: SynthesisTemplate requires embedding_centroid, but TemplateAnalysis (local model) might not.
+            # We'll assume the caller uses a model compatible with these fields.
+            try:
+                # Attempt to instantiate with test data
+                return response_model(
+                    structure="Question + JSON Output",
+                    complexity_description="Requires multi-hop reasoning",
+                    domain="Oncology / Inclusion Criteria",
+                    embedding_centroid=[0.1, 0.2, 0.3],  # Dummy centroid if needed
+                )
+            except Exception:
+                # If T doesn't match above, try to construct with defaults if possible, or raise
+                pass
+
+        # If we can't determine what to return, we might need a more sophisticated mock or hardcode for specific tests.
+        # For now, let's try to construct it with dummy data if it's a simple model, or raise NotImplementedError
+        # allowing tests to patch it if needed.
+        raise NotImplementedError(
+            f"MockTeacher.generate_structured does not know how to mock {response_model.__name__}"
+        )

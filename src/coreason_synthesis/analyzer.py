@@ -1,10 +1,19 @@
 from typing import List
 
 import numpy as np
+from pydantic import BaseModel, Field
 
 from .interfaces import PatternAnalyzer, TeacherModel
 from .models import SeedCase, SynthesisTemplate
 from .services import EmbeddingService
+
+
+class TemplateAnalysis(BaseModel):
+    """Internal model for the structured output of the TeacherModel analysis."""
+
+    structure: str = Field(..., description="Description of the question/output structure")
+    complexity_description: str = Field(..., description="Description of the complexity")
+    domain: str = Field(..., description="The identified domain of the seeds")
 
 
 class PatternAnalyzerImpl(PatternAnalyzer):
@@ -47,30 +56,14 @@ class PatternAnalyzerImpl(PatternAnalyzer):
             "1. The Structure (e.g., Question + JSON)\n"
             "2. The Complexity (e.g., Simple lookup vs Reasoning)\n"
             "3. The Domain (e.g., Clinical Trials, Finance)\n"
-            "Provide the output as structured text."
         )
 
-        analysis_text = self.teacher.generate(prompt)
-
-        # Simple parsing logic for the mock/MVP (in production, we might ask for JSON)
-        # For now, we'll map the raw text or use defaults if parsing fails
-        # Assuming the MockTeacher returns a specific format we control.
-
-        # Default fallback values
-        structure = "Unknown Structure"
-        complexity = "Unknown Complexity"
-        domain = "Unknown Domain"
-
-        # Naive parsing based on MockTeacher's expected output
-        lines = analysis_text.split("\n")
-        for line in lines:
-            if line.startswith("Structure:"):
-                structure = line.replace("Structure:", "").strip()
-            elif line.startswith("Complexity:"):
-                complexity = line.replace("Complexity:", "").strip()
-            elif line.startswith("Domain:"):
-                domain = line.replace("Domain:", "").strip()
+        # Use generate_structured to get a typed response
+        analysis: TemplateAnalysis = self.teacher.generate_structured(prompt, TemplateAnalysis)
 
         return SynthesisTemplate(
-            structure=structure, complexity_description=complexity, domain=domain, embedding_centroid=centroid
+            structure=analysis.structure,
+            complexity_description=analysis.complexity_description,
+            domain=analysis.domain,
+            embedding_centroid=centroid,
         )

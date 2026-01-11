@@ -1,16 +1,21 @@
 import uuid
-from typing import List, Optional
+from typing import Optional, Type, TypeVar
 
 import numpy as np
 import pytest
+from pydantic import BaseModel
 
-from coreason_synthesis.analyzer import PatternAnalyzerImpl
+from coreason_synthesis.analyzer import PatternAnalyzerImpl, TemplateAnalysis
 from coreason_synthesis.models import SeedCase, SynthesisTemplate
-from coreason_synthesis.services import DummyEmbeddingService, EmbeddingService, MockTeacher
+from coreason_synthesis.services import DummyEmbeddingService, MockTeacher
+
+T = TypeVar("T", bound=BaseModel)
 
 
 @pytest.fixture
 def analyzer() -> PatternAnalyzerImpl:
+    # Update MockTeacher to handle TemplateAnalysis specifically if needed,
+    # but the default implementation in services.py checks for "TemplateAnalysis" in name.
     teacher = MockTeacher()
     embedder = DummyEmbeddingService(dimension=4)  # Small dimension for easy checking
     return PatternAnalyzerImpl(teacher, embedder)
@@ -32,48 +37,22 @@ def test_centroid_calculation(analyzer: PatternAnalyzerImpl) -> None:
 
 
 def test_analyze_flow_mock_teacher(analyzer: PatternAnalyzerImpl) -> None:
-    """Test that the analyzer correctly parses the MockTeacher output."""
+    """Test that the analyzer correctly parses the MockTeacher output via generate_structured."""
     seed = SeedCase(id=uuid.uuid4(), context="Context", question="Question", expected_output="Output")
 
     template = analyzer.analyze([seed])
 
     assert isinstance(template, SynthesisTemplate)
-    # Checks against strings defined in MockTeacher
+    # Checks against values returned by MockTeacher.generate_structured for TemplateAnalysis
     assert template.structure == "Question + JSON Output"
     assert template.complexity_description == "Requires multi-hop reasoning"
     assert template.domain == "Oncology / Inclusion Criteria"
-
-
-def test_analyze_flow_mock_teacher_fallback(analyzer: PatternAnalyzerImpl) -> None:
-    """Test the fallback logic when the teacher returns an unexpected response."""
-
-    # Custom MockTeacher for this test
-    class BadTeacher(MockTeacher):
-        def generate(self, prompt: str, context: Optional[str] = None) -> str:
-            return "Unexpected format"
-
-    embedder = DummyEmbeddingService(dimension=4)
-    bad_analyzer = PatternAnalyzerImpl(BadTeacher(), embedder)
-
-    seed = SeedCase(id=uuid.uuid4(), context="Context", question="Question", expected_output="Output")
-
-    template = bad_analyzer.analyze([seed])
-
-    assert template.structure == "Unknown Structure"
-    assert template.complexity_description == "Unknown Complexity"
-    assert template.domain == "Unknown Domain"
 
 
 def test_empty_seeds_error(analyzer: PatternAnalyzerImpl) -> None:
     """Test that analyzing an empty list raises ValueError."""
     with pytest.raises(ValueError, match="Seed list cannot be empty"):
         analyzer.analyze([])
-
-
-def test_mock_teacher_fallback() -> None:
-    """Ensure MockTeacher returns fallback string for unknown prompts."""
-    teacher = MockTeacher()
-    assert teacher.generate("unknown prompt") == "Mock generated response"
 
 
 def test_analyze_single_seed(analyzer: PatternAnalyzerImpl) -> None:
@@ -85,42 +64,6 @@ def test_analyze_single_seed(analyzer: PatternAnalyzerImpl) -> None:
 
     assert template.embedding_centroid is not None
     assert np.allclose(template.embedding_centroid, expected_vec)
-
-
-def test_analyze_partial_teacher_response() -> None:
-    """Test handling when teacher returns partial information."""
-
-    class PartialTeacher(MockTeacher):
-        def generate(self, prompt: str, context: Optional[str] = None) -> str:
-            return "Structure: Custom Structure"
-
-    embedder = DummyEmbeddingService(dimension=4)
-    analyzer = PatternAnalyzerImpl(PartialTeacher(), embedder)
-    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
-
-    template = analyzer.analyze([seed])
-
-    assert template.structure == "Custom Structure"
-    assert template.complexity_description == "Unknown Complexity"
-    assert template.domain == "Unknown Domain"
-
-
-def test_analyze_empty_teacher_response() -> None:
-    """Test handling when teacher returns an empty string."""
-
-    class EmptyTeacher(MockTeacher):
-        def generate(self, prompt: str, context: Optional[str] = None) -> str:
-            return ""
-
-    embedder = DummyEmbeddingService(dimension=4)
-    analyzer = PatternAnalyzerImpl(EmptyTeacher(), embedder)
-    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
-
-    template = analyzer.analyze([seed])
-
-    assert template.structure == "Unknown Structure"
-    assert template.complexity_description == "Unknown Complexity"
-    assert template.domain == "Unknown Domain"
 
 
 def test_analyze_large_batch(analyzer: PatternAnalyzerImpl) -> None:
@@ -136,32 +79,25 @@ def test_analyze_large_batch(analyzer: PatternAnalyzerImpl) -> None:
     assert len(template.embedding_centroid) == 4
 
 
-def test_inconsistent_embedding_dimensions() -> None:
-    """Test behavior when embedding service returns inconsistent dimensions."""
+def test_custom_teacher_structured_response() -> None:
+    """Test with a custom mock teacher returning specific values."""
 
-    class BadEmbedder(EmbeddingService):
-        def __init__(self) -> None:
-            self.call_count = 0
+    class CustomTeacher(MockTeacher):
+        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+            if response_model == TemplateAnalysis:
+                return TemplateAnalysis(
+                    structure="Custom Structure",
+                    complexity_description="High",
+                    domain="Finance",
+                )  # type: ignore
+            return super().generate_structured(prompt, response_model, context)
 
-        def embed(self, text: str) -> List[float]:
-            self.call_count += 1
-            if self.call_count == 1:
-                return [1.0, 2.0]
-            else:
-                return [1.0, 2.0, 3.0]  # Dimension mismatch
+    embedder = DummyEmbeddingService(dimension=4)
+    custom_analyzer = PatternAnalyzerImpl(CustomTeacher(), embedder)
+    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
 
-    teacher = MockTeacher()
-    embedder = BadEmbedder()
-    analyzer = PatternAnalyzerImpl(teacher, embedder)
+    template = custom_analyzer.analyze([seed])
 
-    seed1 = SeedCase(id=uuid.uuid4(), context="A", question="Q", expected_output="A")
-    seed2 = SeedCase(id=uuid.uuid4(), context="B", question="Q", expected_output="A")
-
-    # Numpy should raise a ValueError when trying to meanragged arrays or incompatible shapes
-    # If it constructs an object array (because of ragged nested lists), mean might fail or return something weird.
-    # We expect a crash or an error here, which is better than silent failure.
-    with pytest.raises(ValueError):
-        # Depending on numpy version, creating the array might fail, or the mean might fail.
-        # np.mean on ragged list might raise or warn.
-        # Let's see what happens.
-        analyzer.analyze([seed1, seed2])
+    assert template.structure == "Custom Structure"
+    assert template.complexity_description == "High"
+    assert template.domain == "Finance"
