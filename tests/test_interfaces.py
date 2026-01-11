@@ -94,14 +94,14 @@ def test_concrete_implementations() -> None:
             return [ExtractedSlice(content="slice", source_urn="u", page_number=1, pii_redacted=False, metadata={})]
 
     class ConcreteCompositor(Compositor):
-        def composite(self, context_slice: str, template: SynthesisTemplate) -> SyntheticTestCase:
+        def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
             return SyntheticTestCase(
-                verbatim_context="v",
+                verbatim_context=context_slice.content,
                 synthetic_question="q",
                 golden_chain_of_thought="g",
                 expected_json={},
                 provenance=ProvenanceType.VERBATIM_SOURCE,
-                source_urn="u",
+                source_urn=context_slice.source_urn,
                 complexity=1.0,
                 diversity=1.0,
                 validity_confidence=1.0,
@@ -157,14 +157,14 @@ def test_workflow_simulation() -> None:
             ]
 
     class MockCompositor(Compositor):
-        def composite(self, context_slice: str, template: SynthesisTemplate) -> SyntheticTestCase:
+        def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
             return SyntheticTestCase(
-                verbatim_context=context_slice,
+                verbatim_context=context_slice.content,
                 synthetic_question="What is the revenue?",
                 golden_chain_of_thought="Revenue is listed as...",
                 expected_json={"revenue": 100},
                 provenance=ProvenanceType.VERBATIM_SOURCE,
-                source_urn="http://example.com/report",
+                source_urn=context_slice.source_urn,
                 complexity=5.0,
                 diversity=0.8,
                 validity_confidence=0.95,
@@ -197,7 +197,7 @@ def test_workflow_simulation() -> None:
     assert slices[0].content == "Financial Report 2024..."
 
     # Step D: Composite
-    draft_case = compositor.composite(slices[0].content, template)
+    draft_case = compositor.composite(slices[0], template)
     assert isinstance(draft_case, SyntheticTestCase)
     assert draft_case.verbatim_context == "Financial Report 2024..."
 

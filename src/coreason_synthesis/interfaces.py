@@ -106,12 +106,12 @@ class Compositor(ABC):
     """The Generator: Wraps real data in synthetic interactions."""
 
     @abstractmethod
-    def composite(self, context_slice: str, template: SynthesisTemplate) -> SyntheticTestCase:
+    def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
         """
         Generates a single synthetic test case from a context slice.
 
         Args:
-            context_slice: The verbatim text slice.
+            context_slice: The verbatim text slice (wrapped in ExtractedSlice for lineage).
             template: The synthesis template to guide generation.
 
         Returns:
