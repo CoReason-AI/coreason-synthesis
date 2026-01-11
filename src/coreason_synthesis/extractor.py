@@ -51,12 +51,15 @@ class ExtractorImpl(Extractor):
     def _chunk_content(self, content: str) -> List[str]:
         """
         Splits content into paragraphs based on double newlines.
+        Handles mixed line endings by normalizing to \n.
         """
         if not content:
             return []
+        # Normalize line endings
+        normalized = content.replace("\r\n", "\n").replace("\r", "\n")
         # Split by double newline to identify paragraphs
         # Filter out empty strings after strip
-        return [c.strip() for c in content.split("\n\n") if c.strip()]
+        return [c.strip() for c in normalized.split("\n\n") if c.strip()]
 
     def _is_valid_chunk(self, chunk: str) -> bool:
         """
