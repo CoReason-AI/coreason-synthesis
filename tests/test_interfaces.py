@@ -15,6 +15,7 @@ from coreason_synthesis.interfaces import (
 )
 from coreason_synthesis.models import (
     Document,
+    ExtractedSlice,
     ProvenanceType,
     SeedCase,
     SynthesisTemplate,
@@ -78,8 +79,8 @@ def test_concrete_implementations() -> None:
             return [Document(content="c", source_urn="u")]
 
     class ConcreteExtractor(Extractor):
-        def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[str]:
-            return ["slice"]
+        def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
+            return [ExtractedSlice(content="slice", source_urn="u", page_number=1, pii_redacted=False, metadata={})]
 
     class ConcreteCompositor(Compositor):
         def composite(self, context_slice: str, template: SynthesisTemplate) -> SyntheticTestCase:
@@ -132,9 +133,17 @@ def test_workflow_simulation() -> None:
             return [Document(content="Financial Report 2024...", source_urn="http://example.com/report")]
 
     class MockExtractor(Extractor):
-        def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[str]:
+        def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
             assert len(documents) > 0
-            return [documents[0].content]
+            return [
+                ExtractedSlice(
+                    content=documents[0].content,
+                    source_urn=documents[0].source_urn,
+                    page_number=1,
+                    pii_redacted=False,
+                    metadata={},
+                )
+            ]
 
     class MockCompositor(Compositor):
         def composite(self, context_slice: str, template: SynthesisTemplate) -> SyntheticTestCase:
@@ -174,10 +183,10 @@ def test_workflow_simulation() -> None:
     # Step C: Extract
     slices = extractor.extract(documents, template)
     assert len(slices) == 1
-    assert slices[0] == "Financial Report 2024..."
+    assert slices[0].content == "Financial Report 2024..."
 
     # Step D: Composite
-    draft_case = compositor.composite(slices[0], template)
+    draft_case = compositor.composite(slices[0].content, template)
     assert isinstance(draft_case, SyntheticTestCase)
     assert draft_case.verbatim_context == "Financial Report 2024..."
 

@@ -61,8 +61,9 @@ ignore = []
 python_version = "3.12"
 strict = true
 # ignore_missing_imports = true
-# explicit_package_bases = true
-# namespace_packages = true
+# explicit_package_bases = false
+# namespace_packages = false
+# mypy_path = "src"
 
 [tool.pytest.ini_options]
 addopts = "--cov=src --cov-report=term-missing --cov-fail-under=100"

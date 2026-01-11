@@ -47,6 +47,16 @@ class Document(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata (e.g., title, author)")
 
 
+class ExtractedSlice(BaseModel):
+    """Represents a mined text slice from a document, with PII handling and traceability."""
+
+    content: str = Field(..., description="The sanitized text content")
+    source_urn: str = Field(..., description="URN of the source document")
+    page_number: Optional[int] = Field(None, description="Page number where the slice was found")
+    pii_redacted: bool = Field(False, description="Flag indicating if PII was redacted")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+
 class SynthesisTemplate(BaseModel):
     """Represents the extracted pattern from SeedCases."""
 
