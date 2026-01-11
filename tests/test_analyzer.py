@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, Type, TypeVar
+from typing import List, Optional, Type, TypeVar
 
 import numpy as np
 import pytest
@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from coreason_synthesis.analyzer import PatternAnalyzerImpl, TemplateAnalysis
 from coreason_synthesis.models import SeedCase, SynthesisTemplate
-from coreason_synthesis.services import DummyEmbeddingService, MockTeacher
+from coreason_synthesis.services import DummyEmbeddingService, EmbeddingService, MockTeacher
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -101,3 +101,74 @@ def test_custom_teacher_structured_response() -> None:
     assert template.structure == "Custom Structure"
     assert template.complexity_description == "High"
     assert template.domain == "Finance"
+
+
+def test_teacher_failure_propagation(analyzer: PatternAnalyzerImpl) -> None:
+    """Test that exceptions from the teacher are propagated."""
+
+    class FailingTeacher(MockTeacher):
+        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+            raise RuntimeError("Teacher failed")
+
+    embedder = DummyEmbeddingService(dimension=4)
+    failing_analyzer = PatternAnalyzerImpl(FailingTeacher(), embedder)
+    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
+
+    with pytest.raises(RuntimeError, match="Teacher failed"):
+        failing_analyzer.analyze([seed])
+
+
+def test_embedding_service_failure(analyzer: PatternAnalyzerImpl) -> None:
+    """Test behavior when embedding service fails."""
+
+    class FailingEmbedder(EmbeddingService):
+        def embed(self, text: str) -> List[float]:
+            raise ValueError("Embedding failed")
+
+    teacher = MockTeacher()
+    failing_analyzer = PatternAnalyzerImpl(teacher, FailingEmbedder())
+    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
+
+    with pytest.raises(ValueError, match="Embedding failed"):
+        failing_analyzer.analyze([seed])
+
+
+def test_zero_vector_embeddings(analyzer: PatternAnalyzerImpl) -> None:
+    """Test centroid calculation when embeddings are zero vectors."""
+
+    class ZeroEmbedder(EmbeddingService):
+        def embed(self, text: str) -> List[float]:
+            return [0.0, 0.0, 0.0]
+
+    teacher = MockTeacher()
+    zero_analyzer = PatternAnalyzerImpl(teacher, ZeroEmbedder())
+    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
+
+    template = zero_analyzer.analyze([seed])
+
+    assert template.embedding_centroid == [0.0, 0.0, 0.0]
+
+
+def test_mixed_domain_seeds() -> None:
+    """Test prompt construction with mixed domain seeds."""
+
+    class PromptSpyTeacher(MockTeacher):
+        def __init__(self) -> None:
+            self.last_prompt = ""
+
+        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+            self.last_prompt = prompt
+            return super().generate_structured(prompt, response_model, context)
+
+    teacher = PromptSpyTeacher()
+    embedder = DummyEmbeddingService(dimension=4)
+    analyzer = PatternAnalyzerImpl(teacher, embedder)
+
+    seed1 = SeedCase(id=uuid.uuid4(), context="Finance Doc", question="Q1", expected_output="A1")
+    seed2 = SeedCase(id=uuid.uuid4(), context="Medical Doc", question="Q2", expected_output="A2")
+
+    analyzer.analyze([seed1, seed2])
+
+    assert "Analyze the following 2 seed examples" in teacher.last_prompt
+    assert "Seed 1: Q1 -> A1" in teacher.last_prompt
+    assert "Seed 2: Q2 -> A2" in teacher.last_prompt
