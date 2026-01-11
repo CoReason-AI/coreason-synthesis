@@ -1,8 +1,9 @@
 # tests/test_interfaces.py
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Type, TypeVar
 from uuid import uuid4
 
 import pytest
+from pydantic import BaseModel
 
 from coreason_synthesis.interfaces import (
     Appraiser,
@@ -21,6 +22,8 @@ from coreason_synthesis.models import (
     SynthesisTemplate,
     SyntheticTestCase,
 )
+
+T = TypeVar("T", bound=BaseModel)
 
 
 def test_cannot_instantiate_interfaces() -> None:
@@ -69,6 +72,14 @@ def test_concrete_implementations() -> None:
     class ConcreteTeacher(TeacherModel):
         def generate(self, prompt: str, context: Optional[str] = None) -> str:
             return "generated"
+
+        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+            # Simple dummy implementation for test
+            try:
+                return response_model()
+            except Exception as e:
+                # If model requires fields, we might fail here, but this test just checks instantiation of the class
+                raise NotImplementedError from e
 
     class ConcreteAnalyzer(PatternAnalyzer):
         def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:

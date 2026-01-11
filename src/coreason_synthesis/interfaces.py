@@ -1,6 +1,8 @@
 # src/coreason_synthesis/interfaces.py
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Type, TypeVar
+
+from pydantic import BaseModel
 
 from .models import (
     Document,
@@ -9,6 +11,8 @@ from .models import (
     SynthesisTemplate,
     SyntheticTestCase,
 )
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class TeacherModel(ABC):
@@ -25,6 +29,21 @@ class TeacherModel(ABC):
 
         Returns:
             The generated text string.
+        """
+        pass
+
+    @abstractmethod
+    def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+        """
+        Generates a structured object based on a prompt and optional context.
+
+        Args:
+            prompt: The main prompt for the LLM.
+            response_model: The Pydantic model class to enforce the output structure.
+            context: Optional background context (e.g., retrieval data).
+
+        Returns:
+            An instance of the response_model.
         """
         pass
 
