@@ -129,3 +129,91 @@ def test_composite_prompt_structure(
     assert "Question + JSON" in prompt
     assert "High" in prompt
     assert sample_slice.content in prompt
+
+
+def test_composite_teacher_failure(
+    compositor: CompositorImpl, sample_slice: ExtractedSlice, sample_template: SynthesisTemplate
+) -> None:
+    """
+    Verify that exceptions raised by the TeacherModel are propagated correctly.
+    """
+    # Override the teacher to raise an exception
+    compositor.teacher.generate_structured = Mock(side_effect=RuntimeError("Teacher failed"))  # type: ignore
+
+    with pytest.raises(RuntimeError, match="Teacher failed"):
+        compositor.composite(sample_slice, sample_template)
+
+
+def test_composite_complex_expected_json(
+    compositor: CompositorImpl, sample_slice: ExtractedSlice, sample_template: SynthesisTemplate
+) -> None:
+    """
+    Verify that deeply nested JSON objects in the expected output are preserved.
+    """
+    complex_json = {
+        "nested": {"level1": {"level2": [1, 2, 3]}},
+        "mixed": [
+            {"id": 1, "val": "a"},
+            {"id": 2, "val": "b"},
+        ],
+        "null_val": None,
+    }
+
+    # Setup mock to return complex JSON
+    mock_output = GenerationOutput(
+        synthetic_question="q",
+        golden_chain_of_thought="r",
+        expected_json=complex_json,
+    )
+    compositor.teacher.generate_structured = Mock(return_value=mock_output)  # type: ignore
+
+    result = compositor.composite(sample_slice, sample_template)
+
+    assert result.expected_json == complex_json
+
+
+def test_composite_special_chars_context(
+    compositor: CompositorImpl, sample_slice: ExtractedSlice, sample_template: SynthesisTemplate
+) -> None:
+    """
+    Verify that the system handles context with special characters without breaking.
+    """
+    # Context with quotes, newlines, unicode emojis, and tabs
+    special_context = 'Context with "quotes", \nnewlines, \t tabs, and emojis 🧪🚀.'
+    sample_slice.content = special_context
+
+    # We assume the mock teacher behaves normally (ignoring context content for logic, but we check if it crashes)
+    # The real test is that prompt construction doesn't fail and it passes data through.
+
+    # Spy to check prompt
+    spy_teacher = Mock(wraps=compositor.teacher)
+    compositor.teacher = spy_teacher
+
+    result = compositor.composite(sample_slice, sample_template)
+
+    assert result.verbatim_context == special_context
+
+    # Verify prompt contains the special context exactly
+    call_args = spy_teacher.generate_structured.call_args
+    prompt = call_args.kwargs["prompt"]
+    assert special_context in prompt
+
+
+def test_composite_empty_fields_from_teacher(
+    compositor: CompositorImpl, sample_slice: ExtractedSlice, sample_template: SynthesisTemplate
+) -> None:
+    """
+    Verify behavior when the Teacher returns empty strings for required fields.
+    """
+    mock_output = GenerationOutput(
+        synthetic_question="",  # Empty question
+        golden_chain_of_thought="",  # Empty reasoning
+        expected_json={},  # Empty dict
+    )
+    compositor.teacher.generate_structured = Mock(return_value=mock_output)  # type: ignore
+
+    result = compositor.composite(sample_slice, sample_template)
+
+    assert result.synthetic_question == ""
+    assert result.golden_chain_of_thought == ""
+    assert result.expected_json == {}
