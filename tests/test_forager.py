@@ -25,7 +25,7 @@ class MockMCPClient(MCPClient):
         return self.documents[:limit]
 
 
-@pytest.fixture  # type: ignore[misc]
+@pytest.fixture
 def forager_setup() -> Tuple[ForagerImpl, MockMCPClient, DummyEmbeddingService]:
     embedder = DummyEmbeddingService(dimension=4)
     mcp = MockMCPClient()

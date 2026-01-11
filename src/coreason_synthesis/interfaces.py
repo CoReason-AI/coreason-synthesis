@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from .models import (
     Document,
+    ExtractedSlice,
     SeedCase,
     SynthesisTemplate,
     SyntheticTestCase,
@@ -68,7 +69,7 @@ class Extractor(ABC):
     """The Miner: Targeted mining of text slices."""
 
     @abstractmethod
-    def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[str]:
+    def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
         """
         Extracts relevant text slices from documents matching the template structure.
 
