@@ -9,7 +9,7 @@ from coreason_synthesis.models import SeedCase, SynthesisTemplate
 from coreason_synthesis.services import DummyEmbeddingService, EmbeddingService, MockTeacher
 
 
-@pytest.fixture  # type: ignore[misc]
+@pytest.fixture
 def analyzer() -> PatternAnalyzerImpl:
     teacher = MockTeacher()
     embedder = DummyEmbeddingService(dimension=4)  # Small dimension for easy checking
