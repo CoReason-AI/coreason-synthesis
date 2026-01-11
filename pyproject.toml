@@ -70,6 +70,8 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 omit = ["tests/*"]
+branch = true
+relative_files = true
 
 [tool.coverage.report]
 exclude_also = [

@@ -1,5 +1,5 @@
 # tests/test_interfaces.py
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import uuid4
 
 import pytest
@@ -74,7 +74,7 @@ def test_concrete_implementations() -> None:
             return SynthesisTemplate(structure="s", complexity_description="c", domain="d", embedding_centroid=[0.1])
 
     class ConcreteForager(Forager):
-        def forage(self, template: SynthesisTemplate, limit: int = 10) -> List[Document]:
+        def forage(self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10) -> List[Document]:
             return [Document(content="c", source_urn="u")]
 
     class ConcreteExtractor(Extractor):
@@ -127,7 +127,7 @@ def test_workflow_simulation() -> None:
             )
 
     class MockForager(Forager):
-        def forage(self, template: SynthesisTemplate, limit: int = 10) -> List[Document]:
+        def forage(self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10) -> List[Document]:
             assert template.domain == "Finance"
             return [Document(content="Financial Report 2024...", source_urn="http://example.com/report")]
 
@@ -168,7 +168,7 @@ def test_workflow_simulation() -> None:
     assert isinstance(template, SynthesisTemplate)
 
     # Step B: Forage
-    documents = forager.forage(template)
+    documents = forager.forage(template, user_context={})
     assert isinstance(documents[0], Document)
 
     # Step C: Extract

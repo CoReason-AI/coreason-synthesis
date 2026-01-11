@@ -1,6 +1,6 @@
 # src/coreason_synthesis/interfaces.py
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from .models import (
     Document,
@@ -49,12 +49,13 @@ class Forager(ABC):
     """The Crawler: Retrieval engine."""
 
     @abstractmethod
-    def forage(self, template: SynthesisTemplate, limit: int = 10) -> List[Document]:
+    def forage(self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10) -> List[Document]:
         """
         Retrieves documents based on the synthesis template's centroid.
 
         Args:
             template: The synthesis template containing the vector centroid.
+            user_context: Context for RBAC (e.g., auth token, user ID).
             limit: Maximum number of documents to retrieve.
 
         Returns:
