@@ -1,0 +1,142 @@
+import re
+from typing import List, Optional
+
+from .interfaces import Perturbator
+from .models import Diff, ProvenanceType, SyntheticTestCase
+
+
+class PerturbatorImpl(Perturbator):
+    """
+    Concrete implementation of the Perturbator.
+    Applies deterministic mutations (Value Swap, Negation) to create 'Hard Negatives'.
+    """
+
+    def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
+        """
+        Applies perturbations to a test case to create variants.
+        Generates independent variants for each strategy that successfully modifies the text.
+        """
+        variants: List[SyntheticTestCase] = []
+
+        # Strategy 1: Numeric Swap (Value Swap)
+        numeric_variant = self._apply_numeric_swap(case)
+        if numeric_variant:
+            variants.append(numeric_variant)
+
+        # Strategy 2: Negation
+        negation_variant = self._apply_negation(case)
+        if negation_variant:
+            variants.append(negation_variant)
+
+        return variants
+
+    def _create_variant(
+        self, original_case: SyntheticTestCase, new_context: str, diffs: List[Diff]
+    ) -> SyntheticTestCase:
+        """Helper to create a deep copy with modified context and provenance."""
+        # Pydantic v2 deep copy
+        variant = original_case.model_copy(deep=True)
+
+        variant.verbatim_context = new_context
+        variant.provenance = ProvenanceType.SYNTHETIC_PERTURBED
+
+        # Extend existing modifications if any (though usually starting from clean Verbatim)
+        variant.modifications.extend(diffs)
+
+        # Reset validity confidence as we have altered the ground truth
+        # The Appraiser will re-score this later.
+        variant.validity_confidence = 0.0
+
+        return variant
+
+    def _apply_numeric_swap(self, case: SyntheticTestCase) -> Optional[SyntheticTestCase]:
+        """
+        Multiplies found numbers by 100 to simulate 'overdose' or 'out of range' values.
+        Only applies to the first match to keep it simple and atomic for now.
+        """
+        text = case.verbatim_context
+
+        # Regex explanation:
+        # (?<![\d.]) : Lookbehind to ensure we don't start in the middle of a number
+        # \d+        : One or more digits
+        # (\.\d+)?   : Optional decimal part
+        # (?![\d.])  : Lookahead to ensure we don't stop in the middle of a number
+        #              (not strictly needed if greedy, but safe)
+        # Note: We do NOT use \b because "50mg" has no boundary between 0 and m.
+
+        pattern = r"(?<![\d.])\d+(\.\d+)?(?![\d.])"
+
+        match = re.search(pattern, text)
+        if not match:
+            return None
+
+        original_val_str = match.group(0)
+        try:
+            # Determine type
+            if "." in original_val_str:
+                new_val = float(original_val_str) * 100
+                new_val_str = f"{new_val:.2f}".rstrip("0").rstrip(".")
+            else:
+                new_val = int(original_val_str) * 100
+                new_val_str = str(new_val)
+        except ValueError:  # pragma: no cover
+            return None
+
+        # Replace only the first occurrence
+        new_text = text[: match.start()] + new_val_str + text[match.end() :]
+
+        diff = Diff(description="Numeric Value Swap (x100)", original=original_val_str, new=new_val_str)
+
+        return self._create_variant(case, new_text, [diff])
+
+    def _apply_negation(self, case: SyntheticTestCase) -> Optional[SyntheticTestCase]:
+        """
+        Swaps common logic keywords (include/exclude, positive/negative).
+        Only applies to the first match found.
+        """
+        text = case.verbatim_context
+
+        # Map of word -> replacement
+        pairs = [
+            ("included", "excluded"),
+            ("excluded", "included"),
+            ("include", "exclude"),
+            ("exclude", "include"),
+            ("positive", "negative"),
+            ("negative", "positive"),
+            ("true", "false"),
+            ("false", "true"),
+            ("allow", "forbid"),
+            ("forbid", "allow"),
+        ]
+
+        # Sort by length descending to ensure "included" matches before "include"
+        pairs.sort(key=lambda x: len(x[0]), reverse=True)
+
+        for word, replacement in pairs:
+            # Use word boundaries to avoid partial matches inside other words
+            # e.g. "include" shouldn't match "conclude"
+            pattern = re.compile(r"\b" + re.escape(word) + r"\b", re.IGNORECASE)
+            match = pattern.search(text)
+
+            if match:
+                original_str = match.group(0)
+
+                # Simple case preservation
+                if original_str[0].isupper():
+                    replacement_str = replacement.capitalize()
+                else:
+                    replacement_str = replacement.lower()
+
+                # Replace only first occurrence
+                new_text = text[: match.start()] + replacement_str + text[match.end() :]
+
+                diff = Diff(
+                    description=f"Negation Swap: {word} -> {replacement}",
+                    original=original_str,
+                    new=replacement_str,
+                )
+
+                return self._create_variant(case, new_text, [diff])
+
+        return None
