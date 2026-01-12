@@ -120,3 +120,82 @@ class TestExtractorPII:
         assert len(slices) == 1
         assert slices[0].content == long_chunk
         assert slices[0].metadata["chunk_index"] == 1  # Verify it was the second chunk
+
+    def test_overlapping_pii(self, extractor):
+        """Test strict priority when PII patterns overlap."""
+        # Email "phone@example.com" contains "phone" but not a phone number pattern.
+        # But consider an email that looks like a phone number? unlikely.
+        # What about an email that contains digits matching SSN?
+        # e.g. "user.123-45-6789@example.com"
+        # This matches Email regex. It also matches SSN regex inside.
+        # Since we use re.sub sequentially (Email first in dictionary iteration usually, but let's see),
+        # If Email matches first, it consumes the text.
+        # If SSN matches first, it breaks the email.
+        # Python 3.7+ dicts preserve insertion order.
+        # In ExtractorImpl, "EMAIL" is first. So it should win.
+        text = "Contact user.123-45-6789@example.com for details."
+        sanitized, redacted = extractor._sanitize(text)
+        assert sanitized == "Contact [EMAIL] for details."
+        assert "[SSN]" not in sanitized
+
+    def test_pii_punctuation_adjacency(self, extractor):
+        """Test PII adjacent to punctuation."""
+        variants = [
+            ("Call me at 555-123-4567.", "Call me at [PHONE]."),
+            ("My SSN (123-45-6789) is secret.", "My SSN ([SSN]) is secret."),
+            ("Email: test@example.com, or call.", "Email: [EMAIL], or call."),
+            ("Check MRN: AB123456!", "Check MRN: [MRN]!"),
+        ]
+        for original, expected in variants:
+            sanitized, redacted = extractor._sanitize(original)
+            assert sanitized == expected, f"Failed for '{original}'"
+
+    def test_complex_medical_narrative(self, extractor):
+        """
+        Simulates a complex clinical note with mixed PII, dates, and numbers.
+        """
+        note = (
+            "Patient Name: John Doe (DOB: 01/01/1980)\n"
+            "MRN: XY999999 seen in clinic on 12/12/2023.\n"
+            "Reported valid contact: 555-010-9999 and backup 555.010.9999.\n"
+            "Labs sent to lab-results@hospital.org.\n"
+            "SSN 000-12-3456 verified on intake.\n"
+            "Reference ID 12345 (not PII) and Room 404."
+        )
+
+        sanitized, redacted = extractor._sanitize(note)
+
+        assert redacted is True
+
+        # Check PII is gone
+        assert "[MRN]" in sanitized
+        assert "XY999999" not in sanitized
+
+        assert "[PHONE]" in sanitized
+        assert "555-010-9999" not in sanitized
+
+        assert "[EMAIL]" in sanitized
+        assert "lab-results@hospital.org" not in sanitized
+
+        assert "[SSN]" in sanitized
+        assert "000-12-3456" not in sanitized
+
+        # Check Context is preserved
+        assert "Patient Name: John Doe (DOB: 01/01/1980)" in sanitized # Names/Dates not redacted yet per spec
+        assert "Reference ID 12345 (not PII) and Room 404" in sanitized
+
+        # Verify multiple replacements
+        assert sanitized.count("[PHONE]") == 2
+
+    def test_large_document_performance(self, extractor):
+        """Basic check for processing larger text blocks with PII."""
+        # Create a text with 100 lines, each having an email
+        base_line = "User user{}@example.com logged in at 12:00.\n"
+        content = "".join([base_line.format(i) for i in range(100)])
+
+        sanitized, redacted = extractor._sanitize(content)
+
+        assert redacted is True
+        assert sanitized.count("[EMAIL]") == 100
+        assert "user0@example.com" not in sanitized
+        assert "user99@example.com" not in sanitized
