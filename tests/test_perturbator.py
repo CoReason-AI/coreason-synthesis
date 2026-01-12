@@ -191,3 +191,154 @@ def test_decimal_scaling(perturbator: PerturbatorImpl) -> None:
     variant = variants[0]
     # My impl uses rstrip('0').rstrip('.') so 50.0 -> 50.
     assert "Dose is 50mg." in variant.verbatim_context
+
+
+# --- Edge Case & Complex Scenario Tests ---
+
+
+def test_multiple_numbers(perturbator: PerturbatorImpl) -> None:
+    """
+    Edge Case: Context has multiple numbers.
+    Expectation: Only the first number is perturbed (based on current 'first match' logic).
+    """
+    case = SyntheticTestCase(
+        verbatim_context="First dose 50mg, second dose 100mg.",
+        synthetic_question="Doses?",
+        golden_chain_of_thought="50 and 100.",
+        expected_json={"doses": [50, 100]},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn:test",
+        modifications=[],
+        complexity=1.0,
+        diversity=0.0,
+        validity_confidence=1.0,
+    )
+
+    variants = perturbator.perturb(case)
+    variant = variants[0]
+
+    # First number (50) should be 5000
+    assert "First dose 5000mg" in variant.verbatim_context
+    # Second number (100) should remain 100
+    assert "second dose 100mg" in variant.verbatim_context
+
+
+def test_word_boundary_safety(perturbator: PerturbatorImpl) -> None:
+    """
+    Edge Case: Partial word matches.
+    Expectation: 'conclude' should not trigger 'include' logic. 'inclusive' should not trigger 'include'.
+    """
+    case = SyntheticTestCase(
+        verbatim_context="We conclude that the inclusive policy is good.",
+        synthetic_question="What policy?",
+        golden_chain_of_thought="Inclusive.",
+        expected_json={"policy": "inclusive"},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn:test",
+        modifications=[],
+        complexity=1.0,
+        diversity=0.0,
+        validity_confidence=1.0,
+    )
+
+    variants = perturbator.perturb(case)
+    # Neither "conclude" nor "inclusive" are in the swap list.
+    # "include" is in the list, but should not match inside these words.
+    assert len(variants) == 0
+
+
+def test_all_caps_handling(perturbator: PerturbatorImpl) -> None:
+    """
+    Edge Case: All-caps keywords.
+    Expectation: Current simple logic sees "INCLUDE" (isupper=True) -> returns "Exclude" (Title Case).
+    This test documents valid behavior, even if imperfect.
+    """
+    case = SyntheticTestCase(
+        verbatim_context="PATIENTS MUST BE INCLUDED.",
+        synthetic_question="Status?",
+        golden_chain_of_thought="Included.",
+        expected_json={"status": "INCLUDED"},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn:test",
+        modifications=[],
+        complexity=1.0,
+        diversity=0.0,
+        validity_confidence=1.0,
+    )
+
+    variants = perturbator.perturb(case)
+    variant = variants[0]
+
+    # "INCLUDED" -> isupper() is True -> replacement.capitalize() -> "Excluded"
+    assert "PATIENTS MUST BE Excluded." in variant.verbatim_context
+
+    mod = variant.modifications[0]
+    assert isinstance(mod, Diff)
+    assert mod.original == "INCLUDED"
+    assert mod.new == "Excluded"
+
+
+def test_formatted_number(perturbator: PerturbatorImpl) -> None:
+    """
+    Edge Case: Number with comma '1,000'.
+    Expectation: Regex catches '1', stops at comma. Swaps '1' -> '100'. Result '100,000'.
+    """
+    case = SyntheticTestCase(
+        verbatim_context="Cost is 1,000 dollars.",
+        synthetic_question="Cost?",
+        golden_chain_of_thought="1000.",
+        expected_json={"cost": 1000},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn:test",
+        modifications=[],
+        complexity=1.0,
+        diversity=0.0,
+        validity_confidence=1.0,
+    )
+
+    variants = perturbator.perturb(case)
+    variant = variants[0]
+
+    # "1" matches. 1*100 = 100. replaced "1" with "100".
+    # "1,000" becomes "100,000".
+    assert "Cost is 100,000 dollars." in variant.verbatim_context
+
+
+def test_chained_perturbation(perturbator: PerturbatorImpl) -> None:
+    """
+    Complex Scenario: Re-perturbing a perturbed case.
+    Expectation: History is preserved, new diff added.
+    """
+    # 1. Create a perturbed case (simulated output from first pass)
+    initial_diff = Diff(description="First Mod", original="A", new="B")
+    perturbed_case = SyntheticTestCase(
+        verbatim_context="Include 50 patients.",
+        synthetic_question="Q",
+        golden_chain_of_thought="A",
+        expected_json={},
+        provenance=ProvenanceType.SYNTHETIC_PERTURBED,
+        source_urn="urn:test",
+        modifications=[initial_diff],
+        complexity=0.0,
+        diversity=0.0,
+        validity_confidence=0.0,
+    )
+
+    # 2. Perturb again
+    variants = perturbator.perturb(perturbed_case)
+
+    # Should find 2 variants (Numeric, Negation)
+    assert len(variants) == 2
+
+    # Check numeric variant
+    num_var = next(v for v in variants if "5000" in v.verbatim_context)
+
+    # Should have 2 modifications now
+    assert len(num_var.modifications) == 2
+    assert isinstance(num_var.modifications[0], Diff)
+    assert num_var.modifications[0].description == "First Mod"
+    assert isinstance(num_var.modifications[1], Diff)
+    assert "Numeric" in num_var.modifications[1].description
+
+    # Check that it started from the *current* context of input
+    assert "Include 5000 patients." in num_var.verbatim_context
