@@ -79,21 +79,23 @@ class ExtractorImpl(Extractor):
         redacted = False
 
         # Regex Patterns
+        # Note: Order matters for overlapping patterns, though these are mostly distinct.
         patterns = {
             "EMAIL": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
             # Simple US SSN: 000-00-0000
             "SSN": r"\b\d{3}-\d{2}-\d{4}\b",
-            # Phone: (123) 456-7890 or 123-456-7890. Captures simple variants.
-            "PHONE": r"\b(?:\+?1[-. ]?)?\(?\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}\b",
-            # Generic ID pattern (e.g., MRN: 123456) - avoiding false positives is hard without context
-            # We will target explicit labels if possible, or just sequences of digits if they look like IDs
-            # For this iteration, let's target labeled IDs often seen in medical docs: "MRN: 12345"
-            "MRN": r"\b(MRN|ID)[:#]?\s*\d+\b",
+            # Phone: (123) 456-7890, 123-456-7890, 123.456.7890. Captures simple variants.
+            # Uses \(?\b to handle optional parenthesis before the boundary check for the number.
+            "PHONE": r"(?:\+?1[-. ]?)?\(?\b\d{3}\)?[-. ]?\d{3}[-. ]?\d{4}\b",
+            # MRN: Generic alphanumeric pattern as per specification (e.g., AB123456)
+            # Matches 2-3 uppercase letters followed by 6-9 digits
+            "MRN": r"\b[A-Z]{2,3}\d{6,9}\b",
         }
 
         for label, pattern in patterns.items():
             if re.search(pattern, sanitized_text):
-                sanitized_text = re.sub(pattern, f"[{label}_REDACTED]", sanitized_text)
+                # Replacement uses [LABEL] instead of [LABEL_REDACTED]
+                sanitized_text = re.sub(pattern, f"[{label}]", sanitized_text)
                 redacted = True
 
         return sanitized_text, redacted
