@@ -119,7 +119,7 @@ def test_pii_case_insensitivity(extractor: ExtractorImpl, dummy_template: Synthe
 
     assert len(slices) == 1
     assert "UPPERCASE@EXAMPLE.COM" not in slices[0].content
-    assert "[EMAIL_REDACTED]" in slices[0].content
+    assert "[EMAIL]" in slices[0].content
 
 
 def test_messy_ocr_scenario(extractor: ExtractorImpl, dummy_template: SynthesisTemplate) -> None:
@@ -128,7 +128,7 @@ def test_messy_ocr_scenario(extractor: ExtractorImpl, dummy_template: SynthesisT
     """
     messy_text = (
         "Header: Confidential\n\n"
-        "Patient: John Doe   MRN: 884422\n"
+        "Patient: John Doe   MRN: AB884422\n"
         "  DOB: 01/01/1980\n"
         "Notes: patient reported  fever.\n\n"
         "Email:   JOHN.DOE@GMAIL.COM\n"
@@ -148,9 +148,9 @@ def test_messy_ocr_scenario(extractor: ExtractorImpl, dummy_template: SynthesisT
     doc = Document(content=messy_text, source_urn="urn:messy", metadata={})
     slices = extractor.extract([doc], dummy_template)
 
-    # Chunk 1: "Patient: John Doe MRN: 884422... fever."
+    # Chunk 1: "Patient: John Doe MRN: AB884422... fever."
     # Length: ~80 chars. Valid.
-    # MRN Redaction? "MRN: 884422" -> Redacted.
+    # MRN Redaction? "MRN: AB884422" -> Redacted by new regex.
 
     # Chunk 2: "Email: JOHN.DOE... Phone... Footer"
     # Email redaction?
@@ -163,12 +163,12 @@ def test_messy_ocr_scenario(extractor: ExtractorImpl, dummy_template: SynthesisT
     extracted_text = " ".join([s.content for s in slices])
 
     # MRN check
-    assert "884422" not in extracted_text
-    assert "[MRN_REDACTED]" in extracted_text
+    assert "AB884422" not in extracted_text
+    assert "[MRN]" in extracted_text
 
     # Email check
     assert "JOHN.DOE@GMAIL.COM" not in extracted_text
-    assert "[EMAIL_REDACTED]" in extracted_text
+    assert "[EMAIL]" in extracted_text
 
     # Phone check
     # If our regex is strict, this might fail to redact.

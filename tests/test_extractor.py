@@ -49,7 +49,7 @@ def test_pii_sanitization(extractor: ExtractorImpl, dummy_template: SynthesisTem
     """Test PII redaction for Email, SSN, Phone, MRN."""
     pii_text = (
         "Patient email is test@example.com and phone is 555-123-4567. "
-        "Their SSN is 123-45-6789. Also MRN: 987654321 found. "
+        "Their SSN is 123-45-6789. Also MRN: AB987654321 found. "
         "This text must be long enough to pass the filter limit of fifty characters to be extracted."
     )
     doc = Document(content=pii_text, source_urn="urn:pii", metadata={})
@@ -59,18 +59,17 @@ def test_pii_sanitization(extractor: ExtractorImpl, dummy_template: SynthesisTem
     assert len(slices) == 1
     sanitized = slices[0].content
 
-    assert "[EMAIL_REDACTED]" in sanitized
+    assert "[EMAIL]" in sanitized
     assert "test@example.com" not in sanitized
 
-    assert "[PHONE_REDACTED]" in sanitized
+    assert "[PHONE]" in sanitized
     assert "555-123-4567" not in sanitized
 
-    assert "[SSN_REDACTED]" in sanitized
+    assert "[SSN]" in sanitized
     assert "123-45-6789" not in sanitized
 
-    assert "[MRN_REDACTED]" in sanitized
-    # The regex for MRN includes the label "MRN: \d+" so it replaces the whole thing
-    assert "MRN: 987654321" not in sanitized
+    assert "[MRN]" in sanitized
+    assert "AB987654321" not in sanitized
 
     assert slices[0].pii_redacted is True
 
