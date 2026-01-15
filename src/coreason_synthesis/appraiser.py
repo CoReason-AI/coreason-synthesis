@@ -66,9 +66,9 @@ class AppraiserImpl(Appraiser):
 
                 # Check dimensions to prevent crash
                 if case_np.shape != centroid_np.shape:
-                     # Log warning or handle? For now, we'll just skip diversity calc (default 0)
-                     # ideally we should raise or log, but to match interface we proceed safely
-                     pass
+                    # Log warning or handle? For now, we'll just skip diversity calc (default 0)
+                    # ideally we should raise or log, but to match interface we proceed safely
+                    pass
                 else:
                     case_norm = np.linalg.norm(case_np)
 
@@ -84,14 +84,16 @@ class AppraiserImpl(Appraiser):
 
             # 3. Update Case Metrics
             # Use model_copy to create a new instance with updated metrics
-            updated_case = case.model_copy(update={
-                "complexity": analysis.complexity_score,
-                # Note: Ambiguity score is calculated but not stored in SyntheticTestCase
-                # as per current models.py schema. We use it for internal logic if needed
-                # or if the model changes later.
-                "diversity": diversity_score,
-                "validity_confidence": analysis.validity_confidence
-            })
+            updated_case = case.model_copy(
+                update={
+                    "complexity": analysis.complexity_score,
+                    # Note: Ambiguity score is calculated but not stored in SyntheticTestCase
+                    # as per current models.py schema. We use it for internal logic if needed
+                    # or if the model changes later.
+                    "diversity": diversity_score,
+                    "validity_confidence": analysis.validity_confidence,
+                }
+            )
 
             # 4. Filter by Validity
             if updated_case.validity_confidence >= min_validity_score:

@@ -9,9 +9,7 @@
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
 from typing import List, Optional, Type, TypeVar
-from uuid import uuid4
 
-import numpy as np
 import pytest
 from pydantic import BaseModel
 
@@ -21,7 +19,7 @@ from coreason_synthesis.models import (
     SynthesisTemplate,
     SyntheticTestCase,
 )
-from coreason_synthesis.services import DummyEmbeddingService, MockTeacher, TeacherModel
+from coreason_synthesis.services import DummyEmbeddingService, MockTeacher
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -133,20 +131,34 @@ def test_appraise_sorting(template: SynthesisTemplate) -> None:
             self.call_count += 1
             # Case 1 (processed first): High complexity
             if self.call_count == 1:
-                return AppraisalAnalysis(complexity_score=9.0, ambiguity_score=0, validity_confidence=1.0) # type: ignore
+                return AppraisalAnalysis(complexity_score=9.0, ambiguity_score=0, validity_confidence=1.0)  # type: ignore
             # Case 2: Low complexity
-            return AppraisalAnalysis(complexity_score=2.0, ambiguity_score=0, validity_confidence=1.0) # type: ignore
+            return AppraisalAnalysis(complexity_score=2.0, ambiguity_score=0, validity_confidence=1.0)  # type: ignore
 
     # Ensure embedder dimension matches template centroid (3)
     appraiser = AppraiserImpl(DynamicJudge(), DummyEmbeddingService(dimension=3))
 
     case1 = SyntheticTestCase(
-        verbatim_context="C1", synthetic_question="Q1", golden_chain_of_thought="L1", expected_json={},
-        provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u1", complexity=0, diversity=0, validity_confidence=0
+        verbatim_context="C1",
+        synthetic_question="Q1",
+        golden_chain_of_thought="L1",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u1",
+        complexity=0,
+        diversity=0,
+        validity_confidence=0,
     )
     case2 = SyntheticTestCase(
-        verbatim_context="C2", synthetic_question="Q2", golden_chain_of_thought="L2", expected_json={},
-        provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u2", complexity=0, diversity=0, validity_confidence=0
+        verbatim_context="C2",
+        synthetic_question="Q2",
+        golden_chain_of_thought="L2",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u2",
+        complexity=0,
+        diversity=0,
+        validity_confidence=0,
     )
 
     # Sort by complexity descending
@@ -171,32 +183,49 @@ def test_missing_centroid(base_case: SyntheticTestCase) -> None:
 
     assert results[0].diversity == 0.0
 
+
 def test_sorting_variants(template: SynthesisTemplate) -> None:
     """Test all sorting options."""
+
     class FixedJudge(MockTeacher):
-         def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
             # Return scores based on context to distinguish cases
             if "C1" in prompt:
-                 return AppraisalAnalysis(complexity_score=1.0, ambiguity_score=0, validity_confidence=0.9) # type: ignore
-            return AppraisalAnalysis(complexity_score=10.0, ambiguity_score=0, validity_confidence=0.95) # type: ignore
+                return AppraisalAnalysis(complexity_score=1.0, ambiguity_score=0, validity_confidence=0.9)  # type: ignore
+            return AppraisalAnalysis(complexity_score=10.0, ambiguity_score=0, validity_confidence=0.95)  # type: ignore
 
     # We need to control diversity too.
     # C1 -> Embed=[1,0,0] -> Sim=1 -> Div=0
     # C2 -> Embed=[0,1,0] -> Sim=0 -> Div=1
     class ControlledEmbedder(DummyEmbeddingService):
         def embed(self, text: str) -> List[float]:
-            if text == "C1": return [1.0, 0.0, 0.0]
+            if text == "C1":
+                return [1.0, 0.0, 0.0]
             return [0.0, 1.0, 0.0]
 
     appraiser = AppraiserImpl(FixedJudge(), ControlledEmbedder())
 
     case1 = SyntheticTestCase(
-        verbatim_context="C1", synthetic_question="Q", golden_chain_of_thought="L", expected_json={},
-        provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u", complexity=0, diversity=0, validity_confidence=0
+        verbatim_context="C1",
+        synthetic_question="Q",
+        golden_chain_of_thought="L",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u",
+        complexity=0,
+        diversity=0,
+        validity_confidence=0,
     )
     case2 = SyntheticTestCase(
-        verbatim_context="C2", synthetic_question="Q", golden_chain_of_thought="L", expected_json={},
-        provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u", complexity=0, diversity=0, validity_confidence=0
+        verbatim_context="C2",
+        synthetic_question="Q",
+        golden_chain_of_thought="L",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u",
+        complexity=0,
+        diversity=0,
+        validity_confidence=0,
     )
 
     # C1: Comp=1, Div=0, Val=0.9
@@ -224,12 +253,14 @@ def test_sorting_variants(template: SynthesisTemplate) -> None:
 
     # Default (fallback)
     res = appraiser.appraise([case1, case2], template, sort_by="unknown")
-    assert res[0].verbatim_context == "C2" # fallback to complexity desc
+    assert res[0].verbatim_context == "C2"  # fallback to complexity desc
+
 
 def test_empty_case_list(template: SynthesisTemplate) -> None:
     """Test that appraising empty list returns empty list."""
     appraiser = AppraiserImpl(MockJudge(), DummyEmbeddingService())
     assert appraiser.appraise([], template) == []
+
 
 def test_dimension_mismatch(template: SynthesisTemplate, base_case: SyntheticTestCase) -> None:
     """Test that dimension mismatch is handled gracefully (no diversity score)."""
@@ -241,8 +272,10 @@ def test_dimension_mismatch(template: SynthesisTemplate, base_case: SyntheticTes
     assert len(results) == 1
     assert results[0].diversity == 0.0
 
+
 def test_zero_vector_edge_case(template: SynthesisTemplate, base_case: SyntheticTestCase) -> None:
     """Test handling of zero vectors (division by zero protection)."""
+
     class ZeroEmbedder(DummyEmbeddingService):
         def embed(self, text: str) -> List[float]:
             return [0.0, 0.0, 0.0]
