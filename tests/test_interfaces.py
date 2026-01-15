@@ -1,4 +1,13 @@
-# tests/test_interfaces.py
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_synthesis
+
 from typing import Any, List, Optional, Type, TypeVar
 from uuid import uuid4
 
@@ -112,7 +121,13 @@ def test_concrete_implementations() -> None:
             return [case]
 
     class ConcreteAppraiser(Appraiser):
-        def appraise(self, cases: List[SyntheticTestCase]) -> List[SyntheticTestCase]:
+        def appraise(
+            self,
+            cases: List[SyntheticTestCase],
+            template: SynthesisTemplate,
+            sort_by: str = "complexity_desc",
+            min_validity_score: float = 0.8,
+        ) -> List[SyntheticTestCase]:
             return cases
 
     # Instantiate to verify no TypeError
@@ -171,7 +186,13 @@ def test_workflow_simulation() -> None:
             )
 
     class MockAppraiser(Appraiser):
-        def appraise(self, cases: List[SyntheticTestCase]) -> List[SyntheticTestCase]:
+        def appraise(
+            self,
+            cases: List[SyntheticTestCase],
+            template: SynthesisTemplate,
+            sort_by: str = "complexity_desc",
+            min_validity_score: float = 0.8,
+        ) -> List[SyntheticTestCase]:
             return sorted(cases, key=lambda c: c.complexity, reverse=True)
 
     # 2. Instantiate Components
@@ -202,6 +223,6 @@ def test_workflow_simulation() -> None:
     assert draft_case.verbatim_context == "Financial Report 2024..."
 
     # Step E: Appraise
-    final_cases = appraiser.appraise([draft_case])
+    final_cases = appraiser.appraise([draft_case], template)
     assert len(final_cases) == 1
     assert final_cases[0].validity_confidence == 0.95
