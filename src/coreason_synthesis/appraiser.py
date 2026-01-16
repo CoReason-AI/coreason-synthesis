@@ -73,10 +73,11 @@ class AppraiserImpl(Appraiser):
                     case_norm = np.linalg.norm(case_np)
 
                     if centroid_norm > 0 and case_norm > 0:
-                        cosine_sim = np.dot(case_np, centroid_np) / (case_norm * centroid_norm)
+                        # Explicitly cast to float to satisfy mypy
+                        cosine_sim = float(np.dot(case_np, centroid_np) / (case_norm * centroid_norm))
                         # Diversity = 1 - Cosine Similarity (Distance)
                         # Clip to [0, 1] range to match requirement
-                        diversity_score = float(max(0.0, min(1.0, 1.0 - cosine_sim)))
+                        diversity_score = max(0.0, min(1.0, 1.0 - cosine_sim))
 
             # 2. Calculate Complexity, Ambiguity, Validity via Teacher
             prompt = self._construct_prompt(case, template)
