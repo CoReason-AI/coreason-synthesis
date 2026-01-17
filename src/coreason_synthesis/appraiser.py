@@ -8,7 +8,7 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
-from typing import List
+from typing import List, cast
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -81,7 +81,8 @@ class AppraiserImpl(Appraiser):
                         # Diversity = 1 - Cosine Similarity (Distance)
                         # Clip to [0, 1] range to match requirement
                         # Ensure all inputs to min/max are native floats
-                        diversity_score = max(0.0, min(1.0, 1.0 - cosine_sim))
+                        # Force float conversion to handle potential numpy scalars in strict environments
+                        diversity_score = cast(float, max(0.0, min(1.0, 1.0 - cosine_sim)))  # type: ignore[redundant-cast]
 
             # 2. Calculate Complexity, Ambiguity, Validity via Teacher
             prompt = self._construct_prompt(case, template)
