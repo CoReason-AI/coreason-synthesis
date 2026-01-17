@@ -74,9 +74,13 @@ class AppraiserImpl(Appraiser):
 
                     if centroid_norm > 0 and case_norm > 0:
                         # Explicitly cast to float to satisfy mypy
-                        cosine_sim = float(np.dot(case_np, centroid_np) / (case_norm * centroid_norm))
+                        # Use casting to ensure Mypy treats it as a float, even if numpy returns a scalar type
+                        sim_val = np.dot(case_np, centroid_np) / (case_norm * centroid_norm)
+                        cosine_sim = float(sim_val)
+
                         # Diversity = 1 - Cosine Similarity (Distance)
                         # Clip to [0, 1] range to match requirement
+                        # Ensure all inputs to min/max are native floats
                         diversity_score = max(0.0, min(1.0, 1.0 - cosine_sim))
 
             # 2. Calculate Complexity, Ambiguity, Validity via Teacher
