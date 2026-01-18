@@ -83,3 +83,44 @@ class TestFoundryClient:
     def test_init_without_key(self) -> None:
         client = FoundryClient(base_url="http://mock")
         assert "Authorization" not in client.session.headers
+
+    @patch("requests.Session.post")
+    def test_push_large_batch(
+        self, mock_post: MagicMock, client: FoundryClient, sample_case: SyntheticTestCase
+    ) -> None:
+        """Test pushing a large batch of cases."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Create 100 cases
+        cases = [sample_case for _ in range(100)]
+        count = client.push_cases(cases)
+
+        assert count == 100
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        assert len(kwargs["json"]) == 100
+
+    @patch("requests.Session.post")
+    def test_push_special_characters(
+        self, mock_post: MagicMock, client: FoundryClient, sample_case: SyntheticTestCase
+    ) -> None:
+        """Test pushing cases with unicode/special characters."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Create case with special chars
+        special_case = sample_case.model_copy()
+        special_case.verbatim_context = "Unicode content: 💊 ⚡ テスト"
+        special_case.synthetic_question = "Question with emoji 🚀?"
+
+        count = client.push_cases([special_case])
+
+        assert count == 1
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        payload = kwargs["json"][0]
+        assert payload["verbatim_context"] == "Unicode content: 💊 ⚡ テスト"
+        assert payload["synthetic_question"] == "Question with emoji 🚀?"
