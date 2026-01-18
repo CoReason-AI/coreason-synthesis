@@ -25,6 +25,7 @@ from .models import (
     SyntheticJob,
     SyntheticTestCase,
 )
+from .pipeline import SynthesisPipeline
 
 __all__ = [
     "Diff",
@@ -34,4 +35,5 @@ __all__ = [
     "SynthesisTemplate",
     "SyntheticJob",
     "SyntheticTestCase",
+    "SynthesisPipeline",
 ]
