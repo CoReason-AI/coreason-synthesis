@@ -18,7 +18,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from .interfaces import TeacherModel
-from .models import Document
+from .models import Document, SyntheticTestCase
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -209,3 +209,63 @@ class MockTeacher(TeacherModel):
         raise NotImplementedError(
             f"MockTeacher.generate_structured does not know how to mock {response_model.__name__}"
         )
+
+
+class FoundryClient:
+    """
+    Client for pushing synthetic test cases to Coreason Foundry.
+    Handles authentication and retries.
+    """
+
+    def __init__(self, base_url: str, api_key: Optional[str] = None, timeout: int = 30, max_retries: int = 3):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout = timeout
+
+        # Configure Retry Strategy
+        retry_strategy = Retry(
+            total=max_retries,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["POST"],
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+
+        self.session = requests.Session()
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+
+        if api_key:
+            self.session.headers.update({"Authorization": f"Bearer {api_key}"})
+
+    def push_cases(self, cases: List[SyntheticTestCase]) -> int:
+        """
+        Pushes a list of synthetic test cases to the Foundry API.
+
+        Args:
+            cases: List of SyntheticTestCase objects to push.
+
+        Returns:
+            The number of cases successfully pushed (as reported by the API or the list length).
+        """
+        if not cases:
+            return 0
+
+        # Serialize cases to list of dicts
+        # model_dump(mode='json') handles UUIDs and Enums correctly for JSON serialization
+        payload = [case.model_dump(mode="json") for case in cases]
+
+        try:
+            # Endpoint: /api/v1/test-cases
+            url = f"{self.base_url}/api/v1/test-cases"
+            response = self.session.post(url, json=payload, timeout=self.timeout)
+            response.raise_for_status()
+
+            # Assuming API returns a JSON with count or we just trust successful 2xx implies all were received.
+            # If the API returns detailed status, we might parse it.
+            # For now, we assume standard behavior: 200 OK means batch accepted.
+            return len(cases)
+
+        except requests.RequestException as e:
+            # Propagate exception
+            raise e
