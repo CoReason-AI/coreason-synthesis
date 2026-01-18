@@ -54,7 +54,8 @@ class AppraiserImpl(Appraiser):
         centroid_norm = 0.0
         if template.embedding_centroid:
             centroid_np = np.array(template.embedding_centroid)
-            centroid_norm = np.linalg.norm(centroid_np)
+            # Explicitly cast to float to fix Mypy incompatible type error (floating[Any] -> float)
+            centroid_norm = float(np.linalg.norm(centroid_np))
 
         for case in cases:
             # 1. Calculate Diversity (Distance from Seed Centroid)
@@ -70,7 +71,8 @@ class AppraiserImpl(Appraiser):
                     # ideally we should raise or log, but to match interface we proceed safely
                     pass
                 else:
-                    case_norm = np.linalg.norm(case_np)
+                    # Also cast case_norm to be safe
+                    case_norm = float(np.linalg.norm(case_np))
 
                     if centroid_norm > 0 and case_norm > 0:
                         # Explicitly cast to float to satisfy mypy
