@@ -14,7 +14,8 @@ import pytest
 
 from coreason_synthesis.forager import ForagerImpl
 from coreason_synthesis.models import Document, SynthesisTemplate
-from coreason_synthesis.services import DummyEmbeddingService, MockMCPClient
+from coreason_synthesis.mocks.embedding import DummyEmbeddingService
+from coreason_synthesis.mocks.mcp import MockMCPClient
 
 
 @pytest.fixture

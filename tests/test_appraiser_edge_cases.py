@@ -19,7 +19,8 @@ from coreason_synthesis.models import (
     SynthesisTemplate,
     SyntheticTestCase,
 )
-from coreason_synthesis.services import DummyEmbeddingService, MockTeacher
+from coreason_synthesis.mocks.embedding import DummyEmbeddingService
+from coreason_synthesis.mocks.teacher import MockTeacher
 
 T = TypeVar("T", bound=BaseModel)
 

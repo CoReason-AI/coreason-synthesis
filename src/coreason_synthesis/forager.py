@@ -12,9 +12,8 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from .interfaces import Forager
+from .interfaces import EmbeddingService, Forager, MCPClient
 from .models import Document, SynthesisTemplate
-from .services import EmbeddingService, MCPClient
 
 
 class ForagerImpl(Forager):

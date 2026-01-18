@@ -15,7 +15,7 @@ import requests
 from requests import RequestException
 
 from coreason_synthesis.models import ProvenanceType, SyntheticTestCase
-from coreason_synthesis.services import FoundryClient
+from coreason_synthesis.clients.foundry import FoundryClient
 
 
 class TestFoundryClient:
