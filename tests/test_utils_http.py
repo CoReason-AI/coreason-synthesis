@@ -8,8 +8,6 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
-import pytest
-import requests
 from requests.adapters import HTTPAdapter
 
 from coreason_synthesis.utils.http import create_retry_session
@@ -25,7 +23,7 @@ def test_create_session_defaults() -> None:
 
     adapter = session.adapters["https://"]
     assert isinstance(adapter, HTTPAdapter)
-    assert adapter.max_retries.total == 3 # type: ignore
+    assert adapter.max_retries.total == 3
 
     # Check no auth header by default
     assert "Authorization" not in session.headers
@@ -36,12 +34,14 @@ def test_create_session_custom_retries() -> None:
     # Zero retries
     session_zero = create_retry_session(max_retries=0)
     adapter_zero = session_zero.adapters["https://"]
-    assert adapter_zero.max_retries.total == 0 # type: ignore
+    assert isinstance(adapter_zero, HTTPAdapter)
+    assert adapter_zero.max_retries.total == 0
 
     # Many retries
     session_many = create_retry_session(max_retries=10)
     adapter_many = session_many.adapters["https://"]
-    assert adapter_many.max_retries.total == 10 # type: ignore
+    assert isinstance(adapter_many, HTTPAdapter)
+    assert adapter_many.max_retries.total == 10
 
 
 def test_create_session_with_api_key() -> None:
@@ -57,7 +57,9 @@ def test_create_session_adapter_methods() -> None:
     """Test that adapter handles standard methods."""
     session = create_retry_session()
     adapter = session.adapters["https://"]
-    allowed = adapter.max_retries.allowed_methods # type: ignore
+    assert isinstance(adapter, HTTPAdapter)
+    allowed = adapter.max_retries.allowed_methods
+    assert allowed is not None
     assert "POST" in allowed
     assert "GET" in allowed
     assert "PUT" in allowed

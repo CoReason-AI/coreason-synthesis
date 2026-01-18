@@ -14,13 +14,13 @@ import pytest
 from pydantic import BaseModel
 
 from coreason_synthesis.appraiser import AppraisalAnalysis, AppraiserImpl
+from coreason_synthesis.mocks.embedding import DummyEmbeddingService
+from coreason_synthesis.mocks.teacher import MockTeacher
 from coreason_synthesis.models import (
     ProvenanceType,
     SynthesisTemplate,
     SyntheticTestCase,
 )
-from coreason_synthesis.mocks.embedding import DummyEmbeddingService
-from coreason_synthesis.mocks.teacher import MockTeacher
 
 T = TypeVar("T", bound=BaseModel)
 

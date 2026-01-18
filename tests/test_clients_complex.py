@@ -89,7 +89,6 @@ class TestFoundryClientComplex:
     def test_push_cases_serialization(self, mock_post: MagicMock, client: FoundryClient) -> None:
         """Test that complex fields (UUID, Enum) are serialized correctly."""
         # Create a case with UUID and Enum
-        case_id = uuid4()
         case = SyntheticTestCase(
             verbatim_context="ctx",
             synthetic_question="q",
