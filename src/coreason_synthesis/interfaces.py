@@ -1,4 +1,13 @@
-# src/coreason_synthesis/interfaces.py
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_synthesis
+
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
@@ -141,12 +150,21 @@ class Appraiser(ABC):
     """The Judge: Scoring engine that ranks quality."""
 
     @abstractmethod
-    def appraise(self, cases: List[SyntheticTestCase]) -> List[SyntheticTestCase]:
+    def appraise(
+        self,
+        cases: List[SyntheticTestCase],
+        template: SynthesisTemplate,
+        sort_by: str = "complexity_desc",
+        min_validity_score: float = 0.8,
+    ) -> List[SyntheticTestCase]:
         """
         Scores and filters test cases.
 
         Args:
             cases: List of generated test cases.
+            template: The synthesis template (needed for diversity calculation).
+            sort_by: The metric to sort by (e.g., 'complexity_desc', 'diversity_desc').
+            min_validity_score: The minimum validity confidence to keep a case.
 
         Returns:
             List of appraised and ranked test cases.
