@@ -16,8 +16,10 @@ import pytest
 from pydantic import BaseModel
 
 from coreason_synthesis.analyzer import PatternAnalyzerImpl, TemplateAnalysis
+from coreason_synthesis.interfaces import EmbeddingService
+from coreason_synthesis.mocks.embedding import DummyEmbeddingService
+from coreason_synthesis.mocks.teacher import MockTeacher
 from coreason_synthesis.models import SeedCase, SynthesisTemplate
-from coreason_synthesis.services import DummyEmbeddingService, EmbeddingService, MockTeacher
 
 T = TypeVar("T", bound=BaseModel)
 

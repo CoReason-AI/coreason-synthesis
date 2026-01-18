@@ -13,9 +13,8 @@ from typing import List, cast
 import numpy as np
 from pydantic import BaseModel, Field
 
-from .interfaces import Appraiser, TeacherModel
+from .interfaces import Appraiser, EmbeddingService, TeacherModel
 from .models import SynthesisTemplate, SyntheticTestCase
-from .services import EmbeddingService
 
 
 class AppraisalAnalysis(BaseModel):

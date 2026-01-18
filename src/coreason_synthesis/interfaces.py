@@ -57,6 +57,42 @@ class TeacherModel(ABC):
         pass
 
 
+class EmbeddingService(ABC):
+    """Abstract interface for embedding generation."""
+
+    @abstractmethod
+    def embed(self, text: str) -> List[float]:
+        """
+        Generates a vector embedding for the given text.
+
+        Args:
+            text: The input text string.
+
+        Returns:
+            A list of floats representing the embedding vector.
+        """
+        pass
+
+
+class MCPClient(ABC):
+    """Abstract interface for the Model Context Protocol (MCP) client."""
+
+    @abstractmethod
+    def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+        """
+        Searches the MCP for relevant documents using a vector query.
+
+        Args:
+            query_vector: The embedding vector to search with.
+            user_context: Context for RBAC (e.g., auth token).
+            limit: Maximum number of documents to retrieve.
+
+        Returns:
+            List of retrieved Documents.
+        """
+        pass
+
+
 class PatternAnalyzer(ABC):
     """The Brain: Deconstructs User's Seeds."""
 
