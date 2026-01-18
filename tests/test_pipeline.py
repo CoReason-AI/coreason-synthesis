@@ -1,5 +1,15 @@
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_synthesis
+
 from typing import Any, Dict, List
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -172,3 +182,96 @@ def test_pipeline_empty_extract(pipeline, mock_components, sample_seeds, sample_
 
     assert results == []
     mock_components["compositor"].composite.assert_not_called()
+
+
+def test_pipeline_all_filtered_by_appraiser(pipeline, mock_components, sample_seeds, sample_template):
+    """
+    Complex Scenario: Pipeline runs fully, but appraiser filters everything out.
+    """
+    mock_components["analyzer"].analyze.return_value = sample_template
+    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
+    mock_components["extractor"].extract.return_value = [ExtractedSlice(content="S", source_urn="u")]
+
+    base_case = SyntheticTestCase(
+        verbatim_context="S", synthetic_question="Q", golden_chain_of_thought="R",
+        expected_json={}, provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u",
+        complexity=0.0, diversity=0.0, validity_confidence=0.0
+    )
+    mock_components["compositor"].composite.return_value = base_case
+
+    # Appraiser returns empty list
+    mock_components["appraiser"].appraise.return_value = []
+
+    results = pipeline.run(sample_seeds, {}, {})
+
+    assert results == []
+    mock_components["appraiser"].appraise.assert_called_once()
+
+
+def test_pipeline_perturbation_bad_luck(pipeline, mock_components, sample_seeds, sample_template):
+    """
+    Edge Case: Perturbation rate > 0, but random roll fails (simulated by patch).
+    """
+    mock_components["analyzer"].analyze.return_value = sample_template
+    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
+    mock_components["extractor"].extract.return_value = [ExtractedSlice(content="S", source_urn="u")]
+
+    base_case = SyntheticTestCase(
+        verbatim_context="S", synthetic_question="Q", golden_chain_of_thought="R",
+        expected_json={}, provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u",
+        complexity=0.0, diversity=0.0, validity_confidence=0.0
+    )
+    mock_components["compositor"].composite.return_value = base_case
+
+    # Pass through appraiser
+    mock_components["appraiser"].appraise.side_effect = lambda cases, *args, **kwargs: cases
+
+    config = {"perturbation_rate": 0.5}
+
+    # Patch random.random to return 0.6 (fail condition > 0.5)
+    with patch("random.random", return_value=0.6):
+        results = pipeline.run(sample_seeds, config, {})
+
+    # Perturbator NOT called
+    mock_components["perturbator"].perturb.assert_not_called()
+
+    # Only base case returned
+    assert len(results) == 1
+    assert results[0].provenance == ProvenanceType.VERBATIM_SOURCE
+
+
+def test_pipeline_exception_propagation(pipeline, mock_components, sample_seeds):
+    """
+    Complex Scenario: Component raises exception, pipeline should crash (fail fast).
+    """
+    mock_components["analyzer"].analyze.side_effect = ValueError("Analysis Failed")
+
+    with pytest.raises(ValueError, match="Analysis Failed"):
+        pipeline.run(sample_seeds, {}, {})
+
+
+def test_pipeline_config_defaults(pipeline, mock_components, sample_seeds, sample_template):
+    """
+    Edge Case: Minimal config provided, verify defaults passed to components.
+    """
+    mock_components["analyzer"].analyze.return_value = sample_template
+    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
+    mock_components["extractor"].extract.return_value = [ExtractedSlice(content="S", source_urn="u")]
+    base_case = SyntheticTestCase(
+        verbatim_context="S", synthetic_question="Q", golden_chain_of_thought="R",
+        expected_json={}, provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u",
+        complexity=0.0, diversity=0.0, validity_confidence=0.0
+    )
+    mock_components["compositor"].composite.return_value = base_case
+
+    # Empty config
+    pipeline.run(sample_seeds, {}, {})
+
+    # Verify defaults
+    # Forager default limit 10
+    mock_components["forager"].forage.assert_called_with(sample_template, {}, limit=10)
+
+    # Appraiser default sort="complexity_desc", min_validity=0.8
+    mock_components["appraiser"].appraise.assert_called_with(
+        [base_case], sample_template, sort_by="complexity_desc", min_validity_score=0.8
+    )
