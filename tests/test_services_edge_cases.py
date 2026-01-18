@@ -15,7 +15,8 @@ import requests
 from pydantic import BaseModel, ValidationError
 from requests import RequestException
 
-from coreason_synthesis.services import HttpMCPClient, MockTeacher
+from coreason_synthesis.clients.mcp import HttpMCPClient
+from coreason_synthesis.mocks.teacher import MockTeacher
 
 
 class RandomModel(BaseModel):

@@ -17,14 +17,12 @@ from requests import RequestException
 
 from coreason_synthesis.analyzer import TemplateAnalysis
 from coreason_synthesis.appraiser import AppraisalAnalysis
+from coreason_synthesis.clients.mcp import HttpMCPClient
 from coreason_synthesis.compositor import GenerationOutput
+from coreason_synthesis.mocks.embedding import DummyEmbeddingService
+from coreason_synthesis.mocks.mcp import MockMCPClient
+from coreason_synthesis.mocks.teacher import MockTeacher
 from coreason_synthesis.models import Document, SynthesisTemplate
-from coreason_synthesis.services import (
-    DummyEmbeddingService,
-    HttpMCPClient,
-    MockMCPClient,
-    MockTeacher,
-)
 
 
 def test_dummy_embedding_service() -> None:

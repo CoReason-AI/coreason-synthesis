@@ -13,9 +13,8 @@ from typing import List
 import numpy as np
 from pydantic import BaseModel, Field
 
-from .interfaces import PatternAnalyzer, TeacherModel
+from .interfaces import EmbeddingService, PatternAnalyzer, TeacherModel
 from .models import SeedCase, SynthesisTemplate
-from .services import EmbeddingService
 
 
 class TemplateAnalysis(BaseModel):
