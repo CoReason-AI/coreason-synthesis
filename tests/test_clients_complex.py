@@ -9,7 +9,6 @@
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
 from unittest.mock import MagicMock, patch
-from uuid import uuid4
 
 import pytest
 import requests
@@ -32,7 +31,7 @@ class TestHttpMCPClientComplex:
     def test_search_json_decode_error(self, mock_post: MagicMock, client: HttpMCPClient) -> None:
         """Test handling of non-JSON response (e.g. 502 Bad Gateway HTML)."""
         mock_response = MagicMock()
-        mock_response.status_code = 200 # Mimic an API that returns 200 OK but sends HTML or garbage
+        mock_response.status_code = 200  # Mimic an API that returns 200 OK but sends HTML or garbage
         mock_response.json.side_effect = JSONDecodeError("Expecting value", "doc", 0)
         mock_post.return_value = mock_response
 
@@ -51,11 +50,7 @@ class TestHttpMCPClientComplex:
         mock_response = MagicMock()
         mock_response.status_code = 200
         # Return results missing required 'content' field
-        mock_response.json.return_value = {
-            "results": [
-                {"source_urn": "urn:1"}
-            ]
-        }
+        mock_response.json.return_value = {"results": [{"source_urn": "urn:1"}]}
         mock_post.return_value = mock_response
 
         with pytest.raises(ValidationError):
@@ -94,11 +89,11 @@ class TestFoundryClientComplex:
             synthetic_question="q",
             golden_chain_of_thought="cot",
             expected_json={"a": 1},
-            provenance=ProvenanceType.SYNTHETIC_PERTURBED, # Enum
+            provenance=ProvenanceType.SYNTHETIC_PERTURBED,  # Enum
             source_urn="urn:1",
             complexity=5.0,
             diversity=0.1,
-            validity_confidence=0.9
+            validity_confidence=0.9,
         )
 
         mock_response = MagicMock()
@@ -135,7 +130,7 @@ class TestFoundryClientComplex:
             source_urn="urn",
             complexity=1,
             diversity=0,
-            validity_confidence=1
+            validity_confidence=1,
         )
 
         with pytest.raises(RequestException):
