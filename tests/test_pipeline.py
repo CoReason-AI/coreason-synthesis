@@ -9,32 +9,32 @@
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
 from typing import Any, Dict, List
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
 
 import pytest
 
+from coreason_synthesis.interfaces import (
+    Appraiser,
+    Compositor,
+    Extractor,
+    Forager,
+    PatternAnalyzer,
+    Perturbator,
+)
 from coreason_synthesis.models import (
-    SeedCase,
-    SynthesisTemplate,
-    SyntheticTestCase,
     Document,
     ExtractedSlice,
     ProvenanceType,
+    SeedCase,
+    SynthesisTemplate,
+    SyntheticTestCase,
 )
 from coreason_synthesis.pipeline import SynthesisPipeline
-from coreason_synthesis.interfaces import (
-    PatternAnalyzer,
-    Forager,
-    Extractor,
-    Compositor,
-    Perturbator,
-    Appraiser,
-)
 
 
 @pytest.fixture
-def mock_components():
+def mock_components() -> Dict[str, Mock]:
     return {
         "analyzer": Mock(spec=PatternAnalyzer),
         "forager": Mock(spec=Forager),
@@ -46,7 +46,7 @@ def mock_components():
 
 
 @pytest.fixture
-def pipeline(mock_components):
+def pipeline(mock_components: Dict[str, Mock]) -> SynthesisPipeline:
     return SynthesisPipeline(
         analyzer=mock_components["analyzer"],
         forager=mock_components["forager"],
@@ -58,7 +58,7 @@ def pipeline(mock_components):
 
 
 @pytest.fixture
-def sample_seeds():
+def sample_seeds() -> List[SeedCase]:
     return [
         SeedCase(
             id=uuid4(),
@@ -70,7 +70,7 @@ def sample_seeds():
 
 
 @pytest.fixture
-def sample_template():
+def sample_template() -> SynthesisTemplate:
     return SynthesisTemplate(
         structure="Q+A",
         complexity_description="Medium",
@@ -79,14 +79,19 @@ def sample_template():
     )
 
 
-def test_pipeline_happy_path(pipeline, mock_components, sample_seeds, sample_template):
+def test_pipeline_happy_path(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
     # Setup Mocks
     mock_components["analyzer"].analyze.return_value = sample_template
 
     docs = [Document(content="Doc1", source_urn="u1")]
     mock_components["forager"].forage.return_value = docs
 
-    slices = [ExtractedSlice(content="Slice1", source_urn="u1")]
+    slices = [ExtractedSlice(content="Slice1", source_urn="u1", page_number=1, pii_redacted=False)]
     mock_components["extractor"].extract.return_value = slices
 
     base_case = SyntheticTestCase(
@@ -105,8 +110,8 @@ def test_pipeline_happy_path(pipeline, mock_components, sample_seeds, sample_tem
     # Mock appraiser to return the input list
     mock_components["appraiser"].appraise.side_effect = lambda cases, t, sort_by, min_validity_score: cases
 
-    config = {"target_count": 5, "perturbation_rate": 0.0}
-    user_context = {"user": "test"}
+    config: Dict[str, Any] = {"target_count": 5, "perturbation_rate": 0.0}
+    user_context: Dict[str, Any] = {"user": "test"}
 
     results = pipeline.run(sample_seeds, config, user_context)
 
@@ -124,15 +129,28 @@ def test_pipeline_happy_path(pipeline, mock_components, sample_seeds, sample_tem
     assert results[0] == base_case
 
 
-def test_pipeline_perturbation(pipeline, mock_components, sample_seeds, sample_template):
+def test_pipeline_perturbation(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
     mock_components["analyzer"].analyze.return_value = sample_template
     mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [ExtractedSlice(content="S", source_urn="u")]
+    mock_components["extractor"].extract.return_value = [
+        ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
+    ]
 
     base_case = SyntheticTestCase(
-        verbatim_context="S", synthetic_question="Q", golden_chain_of_thought="R",
-        expected_json={}, provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u",
-        complexity=0.0, diversity=0.0, validity_confidence=0.0
+        verbatim_context="S",
+        synthetic_question="Q",
+        golden_chain_of_thought="R",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u",
+        complexity=0.0,
+        diversity=0.0,
+        validity_confidence=0.0,
     )
     mock_components["compositor"].composite.return_value = base_case
 
@@ -145,7 +163,7 @@ def test_pipeline_perturbation(pipeline, mock_components, sample_seeds, sample_t
     # Force perturbation
     # Since we can't easily mock random.random in the imported module without patching,
     # we can set rate to 1.1 (always true)
-    config = {"perturbation_rate": 1.1}
+    config: Dict[str, Any] = {"perturbation_rate": 1.1}
 
     results = pipeline.run(sample_seeds, config, {})
 
@@ -157,15 +175,20 @@ def test_pipeline_perturbation(pipeline, mock_components, sample_seeds, sample_t
     assert results[1].provenance == ProvenanceType.SYNTHETIC_PERTURBED
 
 
-def test_pipeline_empty_seeds(pipeline, mock_components):
+def test_pipeline_empty_seeds(pipeline: SynthesisPipeline, mock_components: Dict[str, Mock]) -> None:
     results = pipeline.run([], {}, {})
     assert results == []
     mock_components["analyzer"].analyze.assert_not_called()
 
 
-def test_pipeline_empty_forage(pipeline, mock_components, sample_seeds, sample_template):
+def test_pipeline_empty_forage(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
     mock_components["analyzer"].analyze.return_value = sample_template
-    mock_components["forager"].forage.return_value = [] # No docs
+    mock_components["forager"].forage.return_value = []  # No docs
 
     results = pipeline.run(sample_seeds, {}, {})
 
@@ -173,10 +196,15 @@ def test_pipeline_empty_forage(pipeline, mock_components, sample_seeds, sample_t
     mock_components["extractor"].extract.assert_not_called()
 
 
-def test_pipeline_empty_extract(pipeline, mock_components, sample_seeds, sample_template):
+def test_pipeline_empty_extract(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
     mock_components["analyzer"].analyze.return_value = sample_template
     mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [] # No slices
+    mock_components["extractor"].extract.return_value = []  # No slices
 
     results = pipeline.run(sample_seeds, {}, {})
 
@@ -184,18 +212,31 @@ def test_pipeline_empty_extract(pipeline, mock_components, sample_seeds, sample_
     mock_components["compositor"].composite.assert_not_called()
 
 
-def test_pipeline_all_filtered_by_appraiser(pipeline, mock_components, sample_seeds, sample_template):
+def test_pipeline_all_filtered_by_appraiser(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
     """
     Complex Scenario: Pipeline runs fully, but appraiser filters everything out.
     """
     mock_components["analyzer"].analyze.return_value = sample_template
     mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [ExtractedSlice(content="S", source_urn="u")]
+    mock_components["extractor"].extract.return_value = [
+        ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
+    ]
 
     base_case = SyntheticTestCase(
-        verbatim_context="S", synthetic_question="Q", golden_chain_of_thought="R",
-        expected_json={}, provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u",
-        complexity=0.0, diversity=0.0, validity_confidence=0.0
+        verbatim_context="S",
+        synthetic_question="Q",
+        golden_chain_of_thought="R",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u",
+        complexity=0.0,
+        diversity=0.0,
+        validity_confidence=0.0,
     )
     mock_components["compositor"].composite.return_value = base_case
 
@@ -208,18 +249,31 @@ def test_pipeline_all_filtered_by_appraiser(pipeline, mock_components, sample_se
     mock_components["appraiser"].appraise.assert_called_once()
 
 
-def test_pipeline_perturbation_bad_luck(pipeline, mock_components, sample_seeds, sample_template):
+def test_pipeline_perturbation_bad_luck(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
     """
     Edge Case: Perturbation rate > 0, but random roll fails (simulated by patch).
     """
     mock_components["analyzer"].analyze.return_value = sample_template
     mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [ExtractedSlice(content="S", source_urn="u")]
+    mock_components["extractor"].extract.return_value = [
+        ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
+    ]
 
     base_case = SyntheticTestCase(
-        verbatim_context="S", synthetic_question="Q", golden_chain_of_thought="R",
-        expected_json={}, provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u",
-        complexity=0.0, diversity=0.0, validity_confidence=0.0
+        verbatim_context="S",
+        synthetic_question="Q",
+        golden_chain_of_thought="R",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u",
+        complexity=0.0,
+        diversity=0.0,
+        validity_confidence=0.0,
     )
     mock_components["compositor"].composite.return_value = base_case
 
@@ -240,7 +294,11 @@ def test_pipeline_perturbation_bad_luck(pipeline, mock_components, sample_seeds,
     assert results[0].provenance == ProvenanceType.VERBATIM_SOURCE
 
 
-def test_pipeline_exception_propagation(pipeline, mock_components, sample_seeds):
+def test_pipeline_exception_propagation(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+) -> None:
     """
     Complex Scenario: Component raises exception, pipeline should crash (fail fast).
     """
@@ -250,17 +308,30 @@ def test_pipeline_exception_propagation(pipeline, mock_components, sample_seeds)
         pipeline.run(sample_seeds, {}, {})
 
 
-def test_pipeline_config_defaults(pipeline, mock_components, sample_seeds, sample_template):
+def test_pipeline_config_defaults(
+    pipeline: SynthesisPipeline,
+    mock_components: Dict[str, Mock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
     """
     Edge Case: Minimal config provided, verify defaults passed to components.
     """
     mock_components["analyzer"].analyze.return_value = sample_template
     mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [ExtractedSlice(content="S", source_urn="u")]
+    mock_components["extractor"].extract.return_value = [
+        ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
+    ]
     base_case = SyntheticTestCase(
-        verbatim_context="S", synthetic_question="Q", golden_chain_of_thought="R",
-        expected_json={}, provenance=ProvenanceType.VERBATIM_SOURCE, source_urn="u",
-        complexity=0.0, diversity=0.0, validity_confidence=0.0
+        verbatim_context="S",
+        synthetic_question="Q",
+        golden_chain_of_thought="R",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="u",
+        complexity=0.0,
+        diversity=0.0,
+        validity_confidence=0.0,
     )
     mock_components["compositor"].composite.return_value = base_case
 
