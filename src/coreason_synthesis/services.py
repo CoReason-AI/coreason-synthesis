@@ -75,6 +75,24 @@ class MCPClient(ABC):
         pass
 
 
+class MockMCPClient(MCPClient):
+    """Mock MCP Client for testing."""
+
+    def __init__(self, documents: Optional[List[Document]] = None):
+        self.documents = documents or []
+        self.last_query_vector: List[float] = []
+        self.last_user_context: Dict[str, Any] = {}
+        self.last_limit = 0
+
+    def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+        self.last_query_vector = query_vector
+        self.last_user_context = user_context
+        self.last_limit = limit
+        # Return all docs (filtering logic is in Forager, usually MCP does vector search too)
+        # For test, we just return the pre-seeded docs limited by input or available
+        return self.documents[:limit]
+
+
 class MockTeacher(TeacherModel):
     """Deterministic mock teacher model for testing."""
 
