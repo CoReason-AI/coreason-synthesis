@@ -136,13 +136,8 @@ class HttpMCPClient(MCPClient):
             data = response.json()
             documents = []
             for item in data.get("results", []):
-                documents.append(
-                    Document(
-                        content=item["content"],
-                        source_urn=item["source_urn"],
-                        metadata=item.get("metadata", {}),
-                    )
-                )
+                # Use unpacking to leverage Pydantic validation (raises ValidationError if invalid)
+                documents.append(Document(**item))
             return documents
 
         except requests.RequestException as e:
