@@ -12,7 +12,10 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
 import numpy as np
+import requests
 from pydantic import BaseModel
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from .interfaces import TeacherModel
 from .models import Document
@@ -93,6 +96,60 @@ class MockMCPClient(MCPClient):
         return self.documents[:limit]
 
 
+class HttpMCPClient(MCPClient):
+    """
+    Concrete implementation of the MCP Client using requests.
+    Handles rate limiting and retries.
+    """
+
+    def __init__(self, base_url: str, api_key: Optional[str] = None, timeout: int = 30, max_retries: int = 3):
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout = timeout
+
+        # Configure Retry Strategy
+        retry_strategy = Retry(
+            total=max_retries,
+            backoff_factor=1,  # Exponential backoff: 1s, 2s, 4s...
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["POST"],  # Retry on POST as search is idempotent-ish
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+
+        self.session = requests.Session()
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+
+        if api_key:
+            self.session.headers.update({"Authorization": f"Bearer {api_key}"})
+
+    def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+        """
+        Searches the MCP for relevant documents.
+        """
+        payload = {"vector": query_vector, "context": user_context, "limit": limit}
+
+        try:
+            response = self.session.post(f"{self.base_url}/search", json=payload, timeout=self.timeout)
+            response.raise_for_status()
+
+            data = response.json()
+            documents = []
+            for item in data.get("results", []):
+                documents.append(
+                    Document(
+                        content=item["content"],
+                        source_urn=item["source_urn"],
+                        metadata=item.get("metadata", {}),
+                    )
+                )
+            return documents
+
+        except requests.RequestException as e:
+            # Propagate exception or handle it. For now, propagate so caller knows it failed.
+            raise e
+
+
 class MockTeacher(TeacherModel):
     """Deterministic mock teacher model for testing."""
 
@@ -129,8 +186,26 @@ class MockTeacher(TeacherModel):
                     domain="Oncology / Inclusion Criteria",
                     embedding_centroid=[0.1, 0.2, 0.3],  # Dummy centroid if needed
                 )
-            except Exception:
+            except Exception:  # pragma: no cover
                 # If T doesn't match above, try to construct with defaults if possible, or raise
+                pass
+        elif "GenerationOutput" in response_model.__name__:
+            try:
+                return response_model(
+                    synthetic_question="Synthetic question?",
+                    golden_chain_of_thought="Step 1. Step 2.",
+                    expected_json={"result": "value"},
+                )
+            except Exception:  # pragma: no cover
+                pass
+        elif "AppraisalAnalysis" in response_model.__name__:
+            try:
+                return response_model(
+                    complexity_score=5.0,
+                    ambiguity_score=2.0,
+                    validity_confidence=0.9,
+                )
+            except Exception:  # pragma: no cover
                 pass
 
         # If we can't determine what to return, we might need a more sophisticated mock or hardcode for specific tests.
