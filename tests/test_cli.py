@@ -168,3 +168,20 @@ class TestCLI:
         with patch("builtins.open", side_effect=Exception("Write error")):
             # Should log error but not crash
             save_output([], "some_file.json")
+
+    def test_load_seeds_json_decode_error(self, tmp_path: Path) -> None:
+        """Test handling of malformed JSON in seeds file."""
+        p = tmp_path / "malformed.json"
+        p.write_text("{invalid json")
+        with pytest.raises(SystemExit):
+            load_seeds(str(p))
+
+    def test_load_seeds_generic_exception(self, tmp_path: Path) -> None:
+        """Test generic exception during seed loading."""
+        p = tmp_path / "valid.json"
+        p.write_text("[]")
+        # Mock json.load to raise generic Exception
+        with patch("json.load", side_effect=Exception("Unexpected error")):
+            with open(p, "r"):  # Context manager to satisfy open call
+                with pytest.raises(SystemExit):
+                    load_seeds(str(p))
