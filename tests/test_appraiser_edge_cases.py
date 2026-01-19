@@ -53,6 +53,7 @@ def base_case() -> SyntheticTestCase:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="urn:test",
         complexity=0.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=0.0,
     )

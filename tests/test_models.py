@@ -61,6 +61,7 @@ def test_synthetic_test_case_valid() -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="mcp://doc1",
         complexity=5.5,
+        ambiguity=2.0,
         diversity=0.8,
         validity_confidence=0.9,
     )
@@ -80,6 +81,7 @@ def test_synthetic_test_case_modifications() -> None:
         source_urn="urn",
         modifications=[diff_obj],
         complexity=5,
+        ambiguity=0,
         diversity=0.5,
         validity_confidence=0.9,
     )
@@ -96,6 +98,7 @@ def test_synthetic_test_case_modifications() -> None:
         source_urn="urn",
         modifications=["Simple string diff"],
         complexity=5,
+        ambiguity=0,
         diversity=0.5,
         validity_confidence=0.9,
     )
@@ -112,6 +115,7 @@ def test_synthetic_test_case_validation_error() -> None:
             provenance=ProvenanceType.VERBATIM_SOURCE,
             source_urn="urn",
             complexity=11.0,  # Invalid: > 10
+            ambiguity=0,
             diversity=0.5,
             validity_confidence=0.9,
         )
@@ -125,6 +129,7 @@ def test_synthetic_test_case_validation_error() -> None:
             provenance=ProvenanceType.VERBATIM_SOURCE,
             source_urn="urn",
             complexity=5.0,
+            ambiguity=0,
             diversity=1.1,  # Invalid: > 1
             validity_confidence=0.9,
         )
@@ -142,6 +147,7 @@ def test_mixed_modifications_types() -> None:
         source_urn="urn",
         modifications=[diff_obj, "String diff", Diff(description="Another obj", original="old2", new="new2")],
         complexity=5,
+        ambiguity=0,
         diversity=0.5,
         validity_confidence=0.9,
     )
@@ -167,6 +173,7 @@ def test_complex_json_structures() -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="urn",
         complexity=5,
+        ambiguity=0,
         diversity=0.5,
         validity_confidence=0.9,
     )
@@ -188,6 +195,7 @@ def test_boundary_values() -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="urn",
         complexity=0.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=0.0,
     )
@@ -202,6 +210,7 @@ def test_boundary_values() -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="urn",
         complexity=10.0,
+        ambiguity=10.0,
         diversity=1.0,
         validity_confidence=1.0,
     )
@@ -232,6 +241,7 @@ def test_enum_validation() -> None:
             provenance="INVALID_PROVENANCE",  # type: ignore
             source_urn="urn",
             complexity=5,
+            ambiguity=0,
             diversity=0.5,
             validity_confidence=0.9,
         )
@@ -318,6 +328,7 @@ def test_large_diff_list() -> None:
         source_urn="urn",
         modifications=mods,
         complexity=5,
+        ambiguity=0,
         diversity=0.5,
         validity_confidence=0.9,
     )

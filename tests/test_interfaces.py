@@ -112,6 +112,7 @@ def test_concrete_implementations() -> None:
                 provenance=ProvenanceType.VERBATIM_SOURCE,
                 source_urn=context_slice.source_urn,
                 complexity=1.0,
+                ambiguity=0.0,
                 diversity=1.0,
                 validity_confidence=1.0,
             )
@@ -181,6 +182,7 @@ def test_workflow_simulation() -> None:
                 provenance=ProvenanceType.VERBATIM_SOURCE,
                 source_urn=context_slice.source_urn,
                 complexity=5.0,
+                ambiguity=0.0,
                 diversity=0.8,
                 validity_confidence=0.95,
             )

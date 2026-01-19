@@ -92,6 +92,7 @@ class TestFoundryClientComplex:
             provenance=ProvenanceType.SYNTHETIC_PERTURBED,  # Enum
             source_urn="urn:1",
             complexity=5.0,
+            ambiguity=0.0,
             diversity=0.1,
             validity_confidence=0.9,
         )
@@ -129,6 +130,7 @@ class TestFoundryClientComplex:
             provenance=ProvenanceType.VERBATIM_SOURCE,
             source_urn="urn",
             complexity=1,
+            ambiguity=0.0,
             diversity=0,
             validity_confidence=1,
         )

@@ -62,6 +62,7 @@ class CompositorImpl(Compositor):
             modifications=[],
             # Metrics initialized to 0.0, to be calculated by Appraiser
             complexity=0.0,
+            ambiguity=0.0,
             diversity=0.0,
             validity_confidence=0.0,
         )

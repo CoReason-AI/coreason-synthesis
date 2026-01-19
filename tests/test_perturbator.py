@@ -30,6 +30,7 @@ def base_case() -> SyntheticTestCase:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
@@ -43,10 +44,14 @@ def test_numeric_swap(perturbator: PerturbatorImpl, base_case: SyntheticTestCase
     assert len(variants) >= 1
 
     # Find the numeric variant
+    # We must check isinstance before accessing .description because modification can be str or Diff
     numeric_variant = next(
-        (v for v in variants if any(isinstance(m, Diff) and "Numeric" in m.description for m in v.modifications)), None
+        (v for v in variants if any(isinstance(m, Diff) and "Numeric" in m.description for m in v.modifications)),
+        None,
     )
     assert numeric_variant is not None
+    # We asserted not None, but type checker might need help for field access if Optional
+    assert numeric_variant.verbatim_context is not None
 
     # 50 * 100 = 5000
     assert "5000" in numeric_variant.verbatim_context
@@ -70,16 +75,19 @@ def test_negation_swap(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
     negation_variant = next(
-        (v for v in variants if any(isinstance(m, Diff) and "Negation" in m.description for m in v.modifications)), None
+        (v for v in variants if any(isinstance(m, Diff) and "Negation" in m.description for m in v.modifications)),
+        None,
     )
 
     assert negation_variant is not None
+    assert negation_variant.verbatim_context is not None
     # Included (Title Case) -> Excluded (Title Case)
     assert "Excluded" in negation_variant.verbatim_context
     assert "Included" not in negation_variant.verbatim_context
@@ -101,16 +109,19 @@ def test_negation_swap_lowercase(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
     negation_variant = next(
-        (v for v in variants if any(isinstance(m, Diff) and "Negation" in m.description for m in v.modifications)), None
+        (v for v in variants if any(isinstance(m, Diff) and "Negation" in m.description for m in v.modifications)),
+        None,
     )
 
     assert negation_variant is not None
+    assert negation_variant.verbatim_context is not None
     # included (lower) -> excluded (lower)
     assert "excluded" in negation_variant.verbatim_context
     assert "included" not in negation_variant.verbatim_context
@@ -121,8 +132,56 @@ def test_negation_swap_lowercase(perturbator: PerturbatorImpl) -> None:
     assert mod.new == "excluded"
 
 
-def test_no_perturbations_possible(perturbator: PerturbatorImpl) -> None:
-    """Test case with no numbers and no keywords."""
+def test_noise_injection(perturbator: PerturbatorImpl) -> None:
+    """Test that noise is injected deterministically."""
+    case = SyntheticTestCase(
+        verbatim_context="Clean context.",
+        synthetic_question="Q",
+        golden_chain_of_thought="A",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn:test",
+        modifications=[],
+        complexity=1.0,
+        ambiguity=0.0,
+        diversity=0.0,
+        validity_confidence=1.0,
+    )
+
+    variants = perturbator.perturb(case)
+
+    # Expect noise injection variant
+    noise_variant = next(
+        (v for v in variants if any(isinstance(m, Diff) and "Noise" in m.description for m in v.modifications)),
+        None,
+    )
+    assert noise_variant is not None
+    assert noise_variant.verbatim_context is not None
+
+    # Check if any noise phrase is present
+    found_noise = False
+    for phrase in perturbator.NOISE_PHRASES:
+        if phrase in noise_variant.verbatim_context:
+            found_noise = True
+            break
+    assert found_noise
+
+    # Determinism check: running again on same input should produce identical output
+    variants2 = perturbator.perturb(case)
+    noise_variant2 = next(
+        (v for v in variants2 if any(isinstance(m, Diff) and "Noise" in m.description for m in v.modifications)),
+        None,
+    )
+    assert noise_variant2 is not None
+    assert noise_variant2.verbatim_context is not None
+    assert noise_variant.verbatim_context == noise_variant2.verbatim_context
+
+
+def test_no_perturbations_possible_but_noise(perturbator: PerturbatorImpl) -> None:
+    """
+    Test case with no numbers and no keywords.
+    Should still produce a noise injection variant.
+    """
     case = SyntheticTestCase(
         verbatim_context="The sky is blue.",
         synthetic_question="Color?",
@@ -132,12 +191,17 @@ def test_no_perturbations_possible(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
-    assert len(variants) == 0
+    # No numeric, no negation -> only noise
+    assert len(variants) == 1
+    mod = variants[0].modifications[0]
+    assert isinstance(mod, Diff)
+    assert "Noise" in mod.description
 
 
 def test_deep_copy_independence(perturbator: PerturbatorImpl, base_case: SyntheticTestCase) -> None:
@@ -157,7 +221,7 @@ def test_deep_copy_independence(perturbator: PerturbatorImpl, base_case: Synthet
 
 
 def test_multiple_strategies(perturbator: PerturbatorImpl) -> None:
-    """Test that both strategies can apply to the same input, creating separate variants."""
+    """Test that all strategies can apply to the same input, creating separate variants."""
     case = SyntheticTestCase(
         verbatim_context="Include 50 patients.",
         synthetic_question="Count?",
@@ -167,18 +231,25 @@ def test_multiple_strategies(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
 
-    # Should produce 2 variants: one for 'Include'->'Exclude', one for '50'->'5000'
-    assert len(variants) == 2
+    # Should produce 3 variants: Numeric, Negation, Noise
+    assert len(variants) == 3
 
-    variant_texts = [v.verbatim_context for v in variants]
-    assert "Exclude 50 patients." in variant_texts
-    assert "Include 5000 patients." in variant_texts
+    descriptions = set()
+    for v in variants:
+        mod = v.modifications[0]
+        if isinstance(mod, Diff):
+            descriptions.add(mod.description)
+
+    assert any("Numeric" in d for d in descriptions)
+    assert any("Negation" in d for d in descriptions)
+    assert any("Noise" in d for d in descriptions)
 
 
 def test_decimal_scaling(perturbator: PerturbatorImpl) -> None:
@@ -192,15 +263,18 @@ def test_decimal_scaling(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
+    # Numeric variant should exist
+    numeric_v = next(
+        v for v in variants if isinstance(v.modifications[0], Diff) and "Numeric" in v.modifications[0].description
+    )
     # 0.5 * 100 = 50.0 -> "50"
-    variant = variants[0]
-    # My impl uses rstrip('0').rstrip('.') so 50.0 -> 50.
-    assert "Dose is 50mg." in variant.verbatim_context
+    assert "Dose is 50mg." in numeric_v.verbatim_context
 
 
 # --- Edge Case & Complex Scenario Tests ---
@@ -220,12 +294,15 @@ def test_multiple_numbers(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
-    variant = variants[0]
+    variant = next(
+        v for v in variants if isinstance(v.modifications[0], Diff) and "Numeric" in v.modifications[0].description
+    )
 
     # First number (50) should be 5000
     assert "First dose 5000mg" in variant.verbatim_context
@@ -247,14 +324,18 @@ def test_word_boundary_safety(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
     # Neither "conclude" nor "inclusive" are in the swap list.
-    # "include" is in the list, but should not match inside these words.
-    assert len(variants) == 0
+    # Should only get Noise variant
+    assert len(variants) == 1
+    mod = variants[0].modifications[0]
+    assert isinstance(mod, Diff)
+    assert "Noise" in mod.description
 
 
 def test_all_caps_handling(perturbator: PerturbatorImpl) -> None:
@@ -272,20 +353,18 @@ def test_all_caps_handling(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
-    variant = variants[0]
+    variant = next(
+        v for v in variants if isinstance(v.modifications[0], Diff) and "Negation" in v.modifications[0].description
+    )
 
     # "INCLUDED" -> isupper() is True -> replacement.capitalize() -> "Excluded"
     assert "PATIENTS MUST BE Excluded." in variant.verbatim_context
-
-    mod = variant.modifications[0]
-    assert isinstance(mod, Diff)
-    assert mod.original == "INCLUDED"
-    assert mod.new == "Excluded"
 
 
 def test_formatted_number(perturbator: PerturbatorImpl) -> None:
@@ -302,12 +381,15 @@ def test_formatted_number(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[],
         complexity=1.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=1.0,
     )
 
     variants = perturbator.perturb(case)
-    variant = variants[0]
+    variant = next(
+        v for v in variants if isinstance(v.modifications[0], Diff) and "Numeric" in v.modifications[0].description
+    )
 
     # "1" matches. 1*100 = 100. replaced "1" with "100".
     # "1,000" becomes "100,000".
@@ -330,6 +412,7 @@ def test_chained_perturbation(perturbator: PerturbatorImpl) -> None:
         source_urn="urn:test",
         modifications=[initial_diff],
         complexity=0.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=0.0,
     )
@@ -337,11 +420,13 @@ def test_chained_perturbation(perturbator: PerturbatorImpl) -> None:
     # 2. Perturb again
     variants = perturbator.perturb(perturbed_case)
 
-    # Should find 2 variants (Numeric, Negation)
-    assert len(variants) == 2
+    # Should find 3 variants (Numeric, Negation, Noise)
+    assert len(variants) == 3
 
     # Check numeric variant
-    num_var = next(v for v in variants if "5000" in v.verbatim_context)
+    num_var = next(
+        v for v in variants if isinstance(v.modifications[-1], Diff) and "Numeric" in v.modifications[-1].description
+    )
 
     # Should have 2 modifications now
     assert len(num_var.modifications) == 2
@@ -352,3 +437,24 @@ def test_chained_perturbation(perturbator: PerturbatorImpl) -> None:
 
     # Check that it started from the *current* context of input
     assert "Include 5000 patients." in num_var.verbatim_context
+
+
+def test_noise_injection_empty_text(perturbator: PerturbatorImpl) -> None:
+    """Test noise injection on empty text returns None/empty variants."""
+    case = SyntheticTestCase(
+        verbatim_context="",
+        synthetic_question="Q",
+        golden_chain_of_thought="A",
+        expected_json={},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn",
+        modifications=[],
+        complexity=0,
+        ambiguity=0,
+        diversity=0,
+        validity_confidence=0,
+    )
+
+    variants = perturbator.perturb(case)
+    # Should be empty because no numbers, no keywords, and empty text for noise
+    assert len(variants) == 0

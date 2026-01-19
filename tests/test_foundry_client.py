@@ -34,6 +34,7 @@ class TestFoundryClient:
             source_urn="urn:test",
             modifications=[],
             complexity=5.0,
+            ambiguity=0.0,
             diversity=0.5,
             validity_confidence=0.9,
         )

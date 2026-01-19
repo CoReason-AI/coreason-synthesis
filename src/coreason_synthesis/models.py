@@ -93,6 +93,7 @@ class SyntheticTestCase(BaseModel):
 
     # Metrics
     complexity: float = Field(..., ge=0, le=10, description="Estimated logical steps required (0-10)")
+    ambiguity: float = Field(..., ge=0, le=10, description="How implicit is the answer? (0-10)")
     diversity: float = Field(..., ge=0, le=1, description="Distance from the seed's centroid (0-1)")
     validity_confidence: float = Field(..., ge=0, le=1, description="Self-consistency score (0-1)")
 

@@ -53,6 +53,7 @@ def base_case() -> SyntheticTestCase:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="urn:test",
         complexity=0.0,
+        ambiguity=0.0,
         diversity=0.0,
         validity_confidence=0.0,
     )
@@ -85,6 +86,7 @@ def test_appraise_updates_metrics(base_case: SyntheticTestCase, template: Synthe
 
     assert len(results) == 1
     assert results[0].complexity == 8.5
+    assert results[0].ambiguity == 2.0  # Default from MockJudge
     assert results[0].validity_confidence == 0.95
     assert results[0].diversity == 1.0  # 1 - 0
 
@@ -147,6 +149,7 @@ def test_appraise_sorting(template: SynthesisTemplate) -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u1",
         complexity=0,
+        ambiguity=0,
         diversity=0,
         validity_confidence=0,
     )
@@ -158,6 +161,7 @@ def test_appraise_sorting(template: SynthesisTemplate) -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u2",
         complexity=0,
+        ambiguity=0,
         diversity=0,
         validity_confidence=0,
     )
@@ -214,6 +218,7 @@ def test_sorting_variants(template: SynthesisTemplate) -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u",
         complexity=0,
+        ambiguity=0,
         diversity=0,
         validity_confidence=0,
     )
@@ -225,6 +230,7 @@ def test_sorting_variants(template: SynthesisTemplate) -> None:
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u",
         complexity=0,
+        ambiguity=0,
         diversity=0,
         validity_confidence=0,
     )

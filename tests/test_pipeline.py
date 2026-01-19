@@ -102,6 +102,7 @@ def test_pipeline_happy_path(
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u1",
         complexity=0.0,
+        ambiguity=0,
         diversity=0.0,
         validity_confidence=0.0,
     )
@@ -149,6 +150,7 @@ def test_pipeline_perturbation(
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u",
         complexity=0.0,
+        ambiguity=0,
         diversity=0.0,
         validity_confidence=0.0,
     )
@@ -235,6 +237,7 @@ def test_pipeline_all_filtered_by_appraiser(
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u",
         complexity=0.0,
+        ambiguity=0,
         diversity=0.0,
         validity_confidence=0.0,
     )
@@ -272,6 +275,7 @@ def test_pipeline_perturbation_bad_luck(
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u",
         complexity=0.0,
+        ambiguity=0,
         diversity=0.0,
         validity_confidence=0.0,
     )
@@ -330,6 +334,7 @@ def test_pipeline_config_defaults(
         provenance=ProvenanceType.VERBATIM_SOURCE,
         source_urn="u",
         complexity=0.0,
+        ambiguity=0,
         diversity=0.0,
         validity_confidence=0.0,
     )

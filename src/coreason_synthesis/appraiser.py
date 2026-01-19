@@ -94,9 +94,7 @@ class AppraiserImpl(Appraiser):
             updated_case = case.model_copy(
                 update={
                     "complexity": analysis.complexity_score,
-                    # Note: Ambiguity score is calculated but not stored in SyntheticTestCase
-                    # as per current models.py schema. We use it for internal logic if needed
-                    # or if the model changes later.
+                    "ambiguity": analysis.ambiguity_score,
                     "diversity": diversity_score,
                     "validity_confidence": analysis.validity_confidence,
                 }
