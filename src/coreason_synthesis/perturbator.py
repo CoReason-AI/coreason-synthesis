@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Perturbation module.
+
+This module is responsible for creating 'Hard Negatives' and edge cases
+by applying deterministic mutations to the generated test cases.
+"""
+
 import random
 import re
 from typing import List, Optional
@@ -17,9 +24,10 @@ from .models import Diff, ProvenanceType, SyntheticTestCase
 
 
 class PerturbatorImpl(Perturbator):
-    """
-    Concrete implementation of the Perturbator.
-    Applies deterministic mutations (Value Swap, Negation) to create 'Hard Negatives'.
+    """Concrete implementation of the Perturbator.
+
+    Applies deterministic mutations (Value Swap, Negation, Noise) to create
+    variants of the original test cases.
     """
 
     NOISE_PHRASES = [
@@ -32,9 +40,15 @@ class PerturbatorImpl(Perturbator):
     ]
 
     def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
-        """
-        Applies perturbations to a test case to create variants.
+        """Applies perturbations to a test case to create variants.
+
         Generates independent variants for each strategy that successfully modifies the text.
+
+        Args:
+            case: The original synthetic test case.
+
+        Returns:
+            A list containing the generated perturbed variants.
         """
         variants: List[SyntheticTestCase] = []
 
@@ -58,7 +72,16 @@ class PerturbatorImpl(Perturbator):
     def _create_variant(
         self, original_case: SyntheticTestCase, new_context: str, diffs: List[Diff]
     ) -> SyntheticTestCase:
-        """Helper to create a deep copy with modified context and provenance."""
+        """Helper to create a deep copy with modified context and provenance.
+
+        Args:
+            original_case: The base case to copy.
+            new_context: The modified text.
+            diffs: List of Diff objects describing the changes.
+
+        Returns:
+            A new SyntheticTestCase with updated provenance.
+        """
         # Pydantic v2 deep copy
         variant = original_case.model_copy(deep=True)
 
@@ -75,9 +98,15 @@ class PerturbatorImpl(Perturbator):
         return variant
 
     def _apply_numeric_swap(self, case: SyntheticTestCase) -> Optional[SyntheticTestCase]:
-        """
-        Multiplies found numbers by 100 to simulate 'overdose' or 'out of range' values.
-        Only applies to the first match to keep it simple and atomic for now.
+        """Multiplies found numbers by 100 to simulate 'overdose' or 'out of range' values.
+
+        Only applies to the first match to keep it simple and atomic.
+
+        Args:
+            case: The input test case.
+
+        Returns:
+            A new SyntheticTestCase if a number was found and swapped, else None.
         """
         text = case.verbatim_context
 
@@ -115,9 +144,15 @@ class PerturbatorImpl(Perturbator):
         return self._create_variant(case, new_text, [diff])
 
     def _apply_negation(self, case: SyntheticTestCase) -> Optional[SyntheticTestCase]:
-        """
-        Swaps common logic keywords (include/exclude, positive/negative).
+        """Swaps common logic keywords (include/exclude, positive/negative).
+
         Only applies to the first match found.
+
+        Args:
+            case: The input test case.
+
+        Returns:
+            A new SyntheticTestCase if a keyword was found and swapped, else None.
         """
         text = case.verbatim_context
 
@@ -167,8 +202,13 @@ class PerturbatorImpl(Perturbator):
         return None
 
     def _apply_noise_injection(self, case: SyntheticTestCase) -> Optional[SyntheticTestCase]:
-        """
-        Injects irrelevant text into the context to test robustness.
+        """Injects irrelevant text into the context to test robustness.
+
+        Args:
+            case: The input test case.
+
+        Returns:
+            A new SyntheticTestCase with noise injected.
         """
         text = case.verbatim_context
         if not text:

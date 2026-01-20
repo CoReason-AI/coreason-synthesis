@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Appraisal module.
+
+This module is responsible for the 'Rank' phase, using a Judge (Teacher Model)
+to score generated cases and filter them based on quality metrics.
+"""
+
 from typing import List, cast
 
 import numpy as np
@@ -18,7 +25,10 @@ from .models import SynthesisTemplate, SyntheticTestCase
 
 
 class AppraisalAnalysis(BaseModel):
-    """Internal model for the Teacher's appraisal output."""
+    """Internal model for the Teacher's appraisal output.
+
+    Used to parse the structured scoring from the Judge.
+    """
 
     complexity_score: float = Field(..., ge=0, le=10, description="Estimated logical steps required (0-10)")
     ambiguity_score: float = Field(..., ge=0, le=10, description="How implicit is the answer? (0-10)")
@@ -26,13 +36,19 @@ class AppraisalAnalysis(BaseModel):
 
 
 class AppraiserImpl(Appraiser):
-    """
-    Concrete implementation of the Appraiser.
+    """Concrete implementation of the Appraiser.
+
     Scores cases using Teacher Model (Complexity, Ambiguity, Validity)
     and Embedding Service (Diversity).
     """
 
     def __init__(self, teacher: TeacherModel, embedder: EmbeddingService):
+        """Initializes the Appraiser.
+
+        Args:
+            teacher: The LLM service for judging case quality.
+            embedder: Service for calculating embeddings (used for diversity).
+        """
         self.teacher = teacher
         self.embedder = embedder
 
@@ -43,8 +59,16 @@ class AppraiserImpl(Appraiser):
         sort_by: str = "complexity_desc",
         min_validity_score: float = 0.8,
     ) -> List[SyntheticTestCase]:
-        """
-        Scores and filters test cases.
+        """Scores and filters test cases.
+
+        Args:
+            cases: List of generated test cases.
+            template: The synthesis template (needed for diversity calculation).
+            sort_by: The metric to sort by (e.g., 'complexity_desc').
+            min_validity_score: The minimum validity confidence to keep a case.
+
+        Returns:
+            List of appraised and ranked test cases.
         """
         appraised_cases: List[SyntheticTestCase] = []
 
@@ -110,7 +134,15 @@ class AppraiserImpl(Appraiser):
         return self._sort_cases(appraised_cases, sort_by)
 
     def _construct_prompt(self, case: SyntheticTestCase, template: SynthesisTemplate) -> str:
-        """Constructs the prompt for the Teacher Model (Judge)."""
+        """Constructs the prompt for the Teacher Model (Judge).
+
+        Args:
+            case: The test case to evaluate.
+            template: The synthesis template.
+
+        Returns:
+            A formatted prompt string.
+        """
         return (
             f"You are an expert Judge for Synthetic Data Quality in the domain: {template.domain}.\n"
             f"Evaluate the following test case against the intended pattern.\n\n"
@@ -128,7 +160,15 @@ class AppraiserImpl(Appraiser):
         )
 
     def _sort_cases(self, cases: List[SyntheticTestCase], sort_by: str) -> List[SyntheticTestCase]:
-        """Sorts cases based on the requested metric."""
+        """Sorts cases based on the requested metric.
+
+        Args:
+            cases: List of cases to sort.
+            sort_by: The sort key (e.g. 'complexity_desc').
+
+        Returns:
+            Sorted list of cases.
+        """
         if sort_by == "complexity_desc":
             return sorted(cases, key=lambda c: c.complexity, reverse=True)
         elif sort_by == "complexity_asc":

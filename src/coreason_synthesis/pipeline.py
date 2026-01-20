@@ -8,6 +8,14 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Pipeline orchestration module.
+
+This module contains the `SynthesisPipeline` class, which connects all
+components (Analyzer, Forager, Extractor, Compositor, Perturbator, Appraiser)
+to execute the full synthetic data generation workflow.
+"""
+
 import random
 from typing import Any, Dict, List
 
@@ -23,8 +31,10 @@ from .models import SeedCase, SyntheticTestCase
 
 
 class SynthesisPipeline:
-    """
-    Orchestrates the Pattern-Forage-Fabricate-Rank Loop for synthetic data generation.
+    """Orchestrates the Pattern-Forage-Fabricate-Rank Loop for synthetic data generation.
+
+    This class serves as the main entry point for running synthesis jobs.
+    It manages the flow of data between the various specialized components.
     """
 
     def __init__(
@@ -36,6 +46,16 @@ class SynthesisPipeline:
         perturbator: Perturbator,
         appraiser: Appraiser,
     ):
+        """Initializes the synthesis pipeline with required components.
+
+        Args:
+            analyzer: Component to analyze seed patterns.
+            forager: Component to retrieve documents.
+            extractor: Component to mine text slices.
+            compositor: Component to generate test cases.
+            perturbator: Component to apply adversarial mutations.
+            appraiser: Component to score and rank cases.
+        """
         self.analyzer = analyzer
         self.forager = forager
         self.extractor = extractor
@@ -46,8 +66,14 @@ class SynthesisPipeline:
     def run(
         self, seeds: List[SeedCase], config: Dict[str, Any], user_context: Dict[str, Any]
     ) -> List[SyntheticTestCase]:
-        """
-        Executes the full synthesis pipeline.
+        """Executes the full synthesis pipeline.
+
+        1. Analyzes seeds to create a template.
+        2. Forages for relevant documents.
+        3. Extracts and sanitizes text slices.
+        4. Composites base test cases (Verbatim).
+        5. Perturbs cases (Adversarial) based on configuration.
+        6. Appraises and ranks the final output.
 
         Args:
             seeds: List of user-provided seed examples.
@@ -90,11 +116,6 @@ class SynthesisPipeline:
 
             # Apply perturbation if lucky
             if perturbation_rate > 0 and random.random() < perturbation_rate:
-                # perturb returns a list of variants (usually including original or just variants?
-                # Interface says "Returns: A list containing the original and/or perturbed cases."
-                # But typically PerturbatorImpl returns JUST the variants based on the code I read.
-                # Let's check PerturbatorImpl: it returns only variants.
-                # So we append them to the list.
                 variants = self.perturbator.perturb(base_case)
                 generated_cases.extend(variants)
 

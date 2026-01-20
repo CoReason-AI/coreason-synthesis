@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Foundry client module.
+
+This module provides the client interface for interacting with the Coreason
+Foundry service, primarily for pushing generated test cases to the staging area.
+"""
+
 from typing import List, Optional
 
 import requests
@@ -17,25 +24,36 @@ from coreason_synthesis.utils.http import create_retry_session
 
 
 class FoundryClient:
-    """
-    Client for pushing synthetic test cases to Coreason Foundry.
-    Handles authentication and retries.
+    """Client for pushing synthetic test cases to Coreason Foundry.
+
+    Handles authentication, serialization, and retries when communicating
+    with the Foundry API.
     """
 
     def __init__(self, base_url: str, api_key: Optional[str] = None, timeout: int = 30, max_retries: int = 3):
+        """Initializes the FoundryClient.
+
+        Args:
+            base_url: The base URL of the Foundry service.
+            api_key: Optional API key for authentication.
+            timeout: Request timeout in seconds.
+            max_retries: Maximum number of retries for failed requests.
+        """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.session = create_retry_session(api_key=api_key, max_retries=max_retries)
 
     def push_cases(self, cases: List[SyntheticTestCase]) -> int:
-        """
-        Pushes a list of synthetic test cases to the Foundry API.
+        """Pushes a list of synthetic test cases to the Foundry API.
 
         Args:
             cases: List of SyntheticTestCase objects to push.
 
         Returns:
-            The number of cases successfully pushed (as reported by the API or the list length).
+            The number of cases successfully pushed.
+
+        Raises:
+            requests.RequestException: If the API request fails after retries.
         """
         if not cases:
             return 0
