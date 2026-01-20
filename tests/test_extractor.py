@@ -61,6 +61,8 @@ async def test_pii_sanitization(extractor: ExtractorImpl, sample_template: Synth
 @pytest.mark.asyncio
 async def test_no_pii_no_redaction(extractor: ExtractorImpl, sample_template: SynthesisTemplate) -> None:
     clean_text = "Just some safe text " * 5  # > 50 chars
+    # Ensure no trailing space that might get stripped
+    clean_text = clean_text.strip()
     doc = Document(content=clean_text, source_urn="u1")
 
     slices = await extractor.extract([doc], sample_template)

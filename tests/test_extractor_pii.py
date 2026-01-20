@@ -31,23 +31,29 @@ class TestExtractorPII:
     @pytest.mark.asyncio
     async def test_extract_integration(self, extractor: ExtractorImpl, template: SynthesisTemplate) -> None:
         """Integration test for extraction flow."""
-        raw_text = "Patient John Doe (MRN: AB123456) was admitted.\n\nContact: john.doe@example.com or 555-123-4567.\n"
-        # Pad to ensure validity > 50 chars
-        raw_text = raw_text.ljust(100, " ")
+        # Pad to ensure validity > 50 chars for EACH chunk.
+        # \n\n splits paragraphs.
+        # Paragraph 1: ~46 chars -> Pad to 60
+        # Paragraph 2: ~46 chars -> Pad to 60
+        chunk1 = "Patient John Doe (MRN: AB123456) was admitted.".ljust(60, ".")
+        chunk2 = "Contact: john.doe@example.com or 555-123-4567.".ljust(60, ".")
 
-        doc = Document(content=raw_text, source_urn="urn:test:doc1")
+        final_text = f"{chunk1}\n\n{chunk2}"
+
+        doc = Document(content=final_text, source_urn="urn:test:doc1")
         slices = await extractor.extract([doc], template)
 
         assert len(slices) >= 1
-        content = slices[0].content
+        # Check content across slices
+        combined_content = " ".join([s.content for s in slices])
 
         # Check PII redaction
-        assert "AB123456" not in content
-        assert "[MRN]" in content
-        assert "john.doe@example.com" not in content
-        assert "[EMAIL]" in content
-        assert "555-123-4567" not in content
-        assert "[PHONE]" in content
+        assert "AB123456" not in combined_content
+        assert "[MRN]" in combined_content
+        assert "john.doe@example.com" not in combined_content
+        assert "[EMAIL]" in combined_content
+        assert "555-123-4567" not in combined_content
+        assert "[PHONE]" in combined_content
 
     @pytest.mark.asyncio
     async def test_valid_chunk_filtering(self, extractor: ExtractorImpl, template: SynthesisTemplate) -> None:

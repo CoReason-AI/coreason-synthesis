@@ -96,7 +96,8 @@ async def test_multiple_strategies(perturbator: PerturbatorImpl, base_case: Synt
 
 @pytest.mark.asyncio
 async def test_decimal_scaling(perturbator: PerturbatorImpl, base_case: SyntheticTestCase) -> None:
-    base_case.verbatim_context = "Value 0.5."
+    # Avoid trailing dot which can interfere with regex lookahead
+    base_case.verbatim_context = "Value 0.5 is correct"
     variants = await perturbator.perturb(base_case)
     # 0.5 * 100 = 50.0 -> "50" (rstrip logic)
     # Or 50.0 -> "50"

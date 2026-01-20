@@ -22,6 +22,8 @@ from coreason_synthesis.models import SeedCase, SynthesisTemplate
 @pytest.fixture
 def mock_teacher() -> AsyncMock:
     mock = AsyncMock(spec=TeacherModel)
+    # Set default return value for generate_structured to avoid Pydantic errors
+    mock.generate_structured.return_value = TemplateAnalysis(structure="Q", complexity_description="L", domain="D")
     return mock
 
 
@@ -63,7 +65,8 @@ async def test_analyze_flow_mock_teacher(
     mock_embedder: AsyncMock,
     sample_seeds: List[SeedCase],
 ) -> None:
-    # Setup
+    # Setup - overriding default if needed, though default is fine.
+    # But let's verify custom return works
     mock_teacher.generate_structured.return_value = TemplateAnalysis(
         structure="Q+A", complexity_description="Hard", domain="TestDomain"
     )
