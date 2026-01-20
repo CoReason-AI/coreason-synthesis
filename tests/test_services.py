@@ -8,6 +8,8 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+from unittest.mock import AsyncMock
+
 import httpx
 import pytest
 import respx
@@ -65,7 +67,7 @@ class TestHttpMCPClient:
         # Spy on the internal client
         # We can't easily replace it after init, so we rely on calling close and checking state or mocking.
         # Let's mock aclose
-        client._client.aclose = pytest.AsyncMock()  # type: ignore
+        client._client.aclose = AsyncMock()
 
         await client.close()
 
@@ -75,7 +77,7 @@ class TestHttpMCPClient:
     async def test_close_external_client(self) -> None:
         """Test that close() does NOT close an external client."""
         external_client = httpx.AsyncClient()
-        external_client.aclose = pytest.AsyncMock()  # type: ignore
+        external_client.aclose = AsyncMock()
 
         client = HttpMCPClient(base_url="http://test.mcp", client=external_client)
 
