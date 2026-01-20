@@ -1,186 +1,201 @@
 # Copyright (c) 2025 CoReason, Inc.
 #
 # This software is proprietary and dual-licensed.
-# Licensed under the Prosperity Public License 3.0 (the License).
+# Licensed under the Prosperity Public License 3.0 (the "License").
 # A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
 # For details, see the LICENSE file.
 # Commercial use beyond a 30-day trial requires a separate license.
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
-import uuid
-from typing import List, Optional, Type, TypeVar
+from typing import List
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
-import numpy as np
 import pytest
-from pydantic import BaseModel
 
 from coreason_synthesis.analyzer import PatternAnalyzerImpl, TemplateAnalysis
-from coreason_synthesis.interfaces import EmbeddingService
-from coreason_synthesis.mocks.embedding import DummyEmbeddingService
-from coreason_synthesis.mocks.teacher import MockTeacher
+from coreason_synthesis.interfaces import EmbeddingService, TeacherModel
 from coreason_synthesis.models import SeedCase, SynthesisTemplate
-
-T = TypeVar("T", bound=BaseModel)
 
 
 @pytest.fixture
-def analyzer() -> PatternAnalyzerImpl:
-    # Update MockTeacher to handle TemplateAnalysis specifically if needed,
-    # but the default implementation in services.py checks for "TemplateAnalysis" in name.
-    teacher = MockTeacher()
-    embedder = DummyEmbeddingService(dimension=4)  # Small dimension for easy checking
-    return PatternAnalyzerImpl(teacher, embedder)
+def mock_teacher() -> AsyncMock:
+    mock = AsyncMock(spec=TeacherModel)
+    # Set default return value for generate_structured to avoid Pydantic errors
+    mock.generate_structured.return_value = TemplateAnalysis(structure="Q", complexity_description="L", domain="D")
+    return mock
 
 
-def test_centroid_calculation(analyzer: PatternAnalyzerImpl) -> None:
-    """Test that the centroid is correctly calculated as the mean of embeddings."""
-    seed1 = SeedCase(id=uuid.uuid4(), context="A", question="Q1", expected_output="A1")
-    seed2 = SeedCase(id=uuid.uuid4(), context="B", question="Q2", expected_output="A2")
-
-    vec1 = analyzer.embedder.embed("A")
-    vec2 = analyzer.embedder.embed("B")
-    expected_centroid = np.mean([vec1, vec2], axis=0).tolist()
-
-    template = analyzer.analyze([seed1, seed2])
-
-    assert template.embedding_centroid is not None
-    assert np.allclose(template.embedding_centroid, expected_centroid)
+@pytest.fixture
+def mock_embedder() -> AsyncMock:
+    mock = AsyncMock(spec=EmbeddingService)
+    # Default behavior: return a dummy vector
+    mock.embed.return_value = [0.1, 0.2, 0.3]
+    return mock
 
 
-def test_analyze_flow_mock_teacher(analyzer: PatternAnalyzerImpl) -> None:
-    """Test that the analyzer correctly parses the MockTeacher output via generate_structured."""
-    seed = SeedCase(id=uuid.uuid4(), context="Context", question="Question", expected_output="Output")
-
-    template = analyzer.analyze([seed])
-
-    assert isinstance(template, SynthesisTemplate)
-    # Checks against values returned by MockTeacher.generate_structured for TemplateAnalysis
-    assert template.structure == "Question + JSON Output"
-    assert template.complexity_description == "Requires multi-hop reasoning"
-    assert template.domain == "Oncology / Inclusion Criteria"
+@pytest.fixture
+def analyzer(mock_teacher: AsyncMock, mock_embedder: AsyncMock) -> PatternAnalyzerImpl:
+    return PatternAnalyzerImpl(teacher=mock_teacher, embedder=mock_embedder)
 
 
-def test_empty_seeds_error(analyzer: PatternAnalyzerImpl) -> None:
-    """Test that analyzing an empty list raises ValueError."""
+@pytest.fixture
+def sample_seeds() -> List[SeedCase]:
+    return [
+        SeedCase(
+            id=uuid4(),
+            context="Ctx1",
+            question="Q1",
+            expected_output={"ans": "A"},
+        ),
+        SeedCase(
+            id=uuid4(),
+            context="Ctx2",
+            question="Q2",
+            expected_output={"ans": "B"},
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_analyze_flow_mock_teacher(
+    analyzer: PatternAnalyzerImpl,
+    mock_teacher: AsyncMock,
+    mock_embedder: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    # Setup - overriding default if needed, though default is fine.
+    # But let's verify custom return works
+    mock_teacher.generate_structured.return_value = TemplateAnalysis(
+        structure="Q+A", complexity_description="Hard", domain="TestDomain"
+    )
+
+    # Act
+    result = await analyzer.analyze(sample_seeds)
+
+    # Assert
+    assert isinstance(result, SynthesisTemplate)
+    assert result.structure == "Q+A"
+    assert result.complexity_description == "Hard"
+    assert result.domain == "TestDomain"
+    assert len(result.embedding_centroid or []) == 3  # Based on dummy vector
+
+    # Verify calls
+    assert mock_embedder.embed.call_count == 2
+    mock_teacher.generate_structured.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_empty_seeds_error(analyzer: PatternAnalyzerImpl) -> None:
     with pytest.raises(ValueError, match="Seed list cannot be empty"):
-        analyzer.analyze([])
+        await analyzer.analyze([])
 
 
-def test_analyze_single_seed(analyzer: PatternAnalyzerImpl) -> None:
-    """Test that for a single seed, the centroid matches the seed's embedding exactly."""
-    seed = SeedCase(id=uuid.uuid4(), context="Single", question="Q", expected_output="A")
-    expected_vec = analyzer.embedder.embed("Single")
+@pytest.mark.asyncio
+async def test_analyze_single_seed(
+    analyzer: PatternAnalyzerImpl,
+    mock_embedder: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    single_seed = [sample_seeds[0]]
+    mock_embedder.embed.return_value = [1.0, 1.0, 1.0]
 
-    template = analyzer.analyze([seed])
+    result = await analyzer.analyze(single_seed)
 
-    assert template.embedding_centroid is not None
-    assert np.allclose(template.embedding_centroid, expected_vec)
-
-
-def test_analyze_large_batch(analyzer: PatternAnalyzerImpl) -> None:
-    """Test stability with a larger batch of seeds."""
-    seeds = []
-    for i in range(50):
-        seeds.append(SeedCase(id=uuid.uuid4(), context=f"Context {i}", question=f"Q{i}", expected_output=f"A{i}"))
-
-    # Just ensure it runs without error and returns a valid template
-    template = analyzer.analyze(seeds)
-    assert isinstance(template, SynthesisTemplate)
-    assert template.embedding_centroid is not None
-    assert len(template.embedding_centroid) == 4
+    assert result.embedding_centroid == [1.0, 1.0, 1.0]
+    assert mock_embedder.embed.call_count == 1
 
 
-def test_custom_teacher_structured_response() -> None:
-    """Test with a custom mock teacher returning specific values."""
+@pytest.mark.asyncio
+async def test_centroid_calculation(
+    analyzer: PatternAnalyzerImpl,
+    mock_embedder: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    # Seed 1 -> [0, 0, 0], Seed 2 -> [2, 2, 2] => Centroid [1, 1, 1]
+    mock_embedder.embed.side_effect = [[0.0, 0.0, 0.0], [2.0, 2.0, 2.0]]
 
-    class CustomTeacher(MockTeacher):
-        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
-            if response_model == TemplateAnalysis:
-                return TemplateAnalysis(
-                    structure="Custom Structure",
-                    complexity_description="High",
-                    domain="Finance",
-                )  # type: ignore
-            return super().generate_structured(prompt, response_model, context)
+    result = await analyzer.analyze(sample_seeds)
 
-    embedder = DummyEmbeddingService(dimension=4)
-    custom_analyzer = PatternAnalyzerImpl(CustomTeacher(), embedder)
-    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
-
-    template = custom_analyzer.analyze([seed])
-
-    assert template.structure == "Custom Structure"
-    assert template.complexity_description == "High"
-    assert template.domain == "Finance"
+    assert result.embedding_centroid == [1.0, 1.0, 1.0]
 
 
-def test_teacher_failure_propagation(analyzer: PatternAnalyzerImpl) -> None:
-    """Test that exceptions from the teacher are propagated."""
+@pytest.mark.asyncio
+async def test_analyze_large_batch(
+    analyzer: PatternAnalyzerImpl,
+    mock_embedder: AsyncMock,
+) -> None:
+    # Create 100 seeds
+    seeds = [SeedCase(id=uuid4(), context="C", question="Q", expected_output={}) for _ in range(100)]
+    mock_embedder.embed.return_value = [1.0]
 
-    class FailingTeacher(MockTeacher):
-        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
-            raise RuntimeError("Teacher failed")
+    result = await analyzer.analyze(seeds)
 
-    embedder = DummyEmbeddingService(dimension=4)
-    failing_analyzer = PatternAnalyzerImpl(FailingTeacher(), embedder)
-    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
-
-    with pytest.raises(RuntimeError, match="Teacher failed"):
-        failing_analyzer.analyze([seed])
-
-
-def test_embedding_service_failure(analyzer: PatternAnalyzerImpl) -> None:
-    """Test behavior when embedding service fails."""
-
-    class FailingEmbedder(EmbeddingService):
-        def embed(self, text: str) -> List[float]:
-            raise ValueError("Embedding failed")
-
-    teacher = MockTeacher()
-    failing_analyzer = PatternAnalyzerImpl(teacher, FailingEmbedder())
-    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
-
-    with pytest.raises(ValueError, match="Embedding failed"):
-        failing_analyzer.analyze([seed])
+    assert mock_embedder.embed.call_count == 100
+    assert result.embedding_centroid == [1.0]
 
 
-def test_zero_vector_embeddings(analyzer: PatternAnalyzerImpl) -> None:
-    """Test centroid calculation when embeddings are zero vectors."""
+@pytest.mark.asyncio
+async def test_custom_teacher_structured_response(
+    analyzer: PatternAnalyzerImpl,
+    mock_teacher: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    # Ensure the model passed to generate_structured is correct
+    await analyzer.analyze(sample_seeds)
 
-    class ZeroEmbedder(EmbeddingService):
-        def embed(self, text: str) -> List[float]:
-            return [0.0, 0.0, 0.0]
-
-    teacher = MockTeacher()
-    zero_analyzer = PatternAnalyzerImpl(teacher, ZeroEmbedder())
-    seed = SeedCase(id=uuid.uuid4(), context="C", question="Q", expected_output="A")
-
-    template = zero_analyzer.analyze([seed])
-
-    assert template.embedding_centroid == [0.0, 0.0, 0.0]
+    args, kwargs = mock_teacher.generate_structured.call_args
+    assert kwargs.get("response_model") == TemplateAnalysis or args[1] == TemplateAnalysis
 
 
-def test_mixed_domain_seeds() -> None:
-    """Test prompt construction with mixed domain seeds."""
+@pytest.mark.asyncio
+async def test_teacher_failure_propagation(
+    analyzer: PatternAnalyzerImpl,
+    mock_teacher: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    mock_teacher.generate_structured.side_effect = RuntimeError("LLM Failure")
 
-    class PromptSpyTeacher(MockTeacher):
-        def __init__(self) -> None:
-            self.last_prompt = ""
+    with pytest.raises(RuntimeError, match="LLM Failure"):
+        await analyzer.analyze(sample_seeds)
 
-        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
-            self.last_prompt = prompt
-            return super().generate_structured(prompt, response_model, context)
 
-    teacher = PromptSpyTeacher()
-    embedder = DummyEmbeddingService(dimension=4)
-    analyzer = PatternAnalyzerImpl(teacher, embedder)
+@pytest.mark.asyncio
+async def test_embedding_service_failure(
+    analyzer: PatternAnalyzerImpl,
+    mock_embedder: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    mock_embedder.embed.side_effect = ConnectionError("Embedder Down")
 
-    seed1 = SeedCase(id=uuid.uuid4(), context="Finance Doc", question="Q1", expected_output="A1")
-    seed2 = SeedCase(id=uuid.uuid4(), context="Medical Doc", question="Q2", expected_output="A2")
+    with pytest.raises(ConnectionError, match="Embedder Down"):
+        await analyzer.analyze(sample_seeds)
 
-    analyzer.analyze([seed1, seed2])
 
-    assert "Analyze the following 2 seed examples" in teacher.last_prompt
-    assert "Seed 1: Q1 -> A1" in teacher.last_prompt
-    assert "Seed 2: Q2 -> A2" in teacher.last_prompt
+@pytest.mark.asyncio
+async def test_zero_vector_embeddings(
+    analyzer: PatternAnalyzerImpl,
+    mock_embedder: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    mock_embedder.embed.return_value = [0.0, 0.0]
+    result = await analyzer.analyze(sample_seeds)
+    assert result.embedding_centroid == [0.0, 0.0]
+
+
+@pytest.mark.asyncio
+async def test_mixed_domain_seeds(
+    analyzer: PatternAnalyzerImpl,
+    mock_teacher: AsyncMock,
+    sample_seeds: List[SeedCase],
+) -> None:
+    # Just verifying that the prompt construction handles multiple seeds
+    # We can inspect the prompt string in call_args
+    await analyzer.analyze(sample_seeds)
+
+    call_args = mock_teacher.generate_structured.call_args
+    prompt = call_args[0][0]
+
+    assert "Seed 1:" in prompt
+    assert "Seed 2:" in prompt

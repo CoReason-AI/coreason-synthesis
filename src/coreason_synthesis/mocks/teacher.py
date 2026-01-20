@@ -20,7 +20,7 @@ from coreason_synthesis.interfaces import T, TeacherModel
 class MockTeacher(TeacherModel):
     """Deterministic mock teacher model for testing."""
 
-    def generate(self, prompt: str, context: Optional[str] = None) -> str:
+    async def generate(self, prompt: str, context: Optional[str] = None) -> str:
         """Returns a mock response based on the prompt content.
 
         Args:
@@ -38,7 +38,7 @@ class MockTeacher(TeacherModel):
             )
         return "Mock generated response"
 
-    def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+    async def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
         """Returns a mock structured response based on the prompt content and response model.
 
         Args:
@@ -63,6 +63,7 @@ class MockTeacher(TeacherModel):
             # We'll assume the caller uses a model compatible with these fields.
             try:
                 # Attempt to instantiate with test data
+                # Using Any to bypass strict type checking for kwargs which is dynamic
                 return response_model(
                     structure="Question + JSON Output",
                     complexity_description="Requires multi-hop reasoning",

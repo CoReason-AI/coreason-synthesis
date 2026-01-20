@@ -15,8 +15,9 @@ This module implements the logic for analyzing user-provided seed cases
 to extract the underlying testing intent, structure, and domain context.
 """
 
-from typing import List
+from typing import List, cast
 
+import anyio
 import numpy as np
 from pydantic import BaseModel, Field
 
@@ -51,7 +52,7 @@ class PatternAnalyzerImpl(PatternAnalyzer):
         self.teacher = teacher
         self.embedder = embedder
 
-    def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
+    async def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
         """Analyzes seed cases to extract a synthesis template and vector centroid.
 
         Args:
@@ -70,11 +71,12 @@ class PatternAnalyzerImpl(PatternAnalyzer):
         embeddings = []
         for seed in seeds:
             # Embed the context of the seed (most relevant for retrieval)
-            vector = self.embedder.embed(seed.context)
+            vector = await self.embedder.embed(seed.context)
             embeddings.append(vector)
 
         # Calculate mean vector (centroid)
-        centroid = np.mean(embeddings, axis=0).tolist()
+        # This is a CPU-bound numpy operation
+        centroid = await anyio.to_thread.run_sync(self._calculate_centroid, embeddings)
 
         # 2. Extract Template via Teacher
         # Construct a prompt for the teacher
@@ -92,7 +94,7 @@ class PatternAnalyzerImpl(PatternAnalyzer):
         )
 
         # Use generate_structured to get a typed response
-        analysis: TemplateAnalysis = self.teacher.generate_structured(prompt, TemplateAnalysis)
+        analysis: TemplateAnalysis = await self.teacher.generate_structured(prompt, TemplateAnalysis)
 
         return SynthesisTemplate(
             structure=analysis.structure,
@@ -100,3 +102,10 @@ class PatternAnalyzerImpl(PatternAnalyzer):
             domain=analysis.domain,
             embedding_centroid=centroid,
         )
+
+    def _calculate_centroid(self, embeddings: List[List[float]]) -> List[float]:
+        """Calculates the mean vector from a list of embeddings."""
+        # Using cast to help mypy understand the return type from numpy operation which might be inferred
+        # as Any or ndarray. tolist() converts it to python list of floats.
+        result = np.mean(embeddings, axis=0).tolist()
+        return cast(List[float], result)

@@ -53,7 +53,7 @@ class CompositorImpl(Compositor):
         """
         self.teacher = teacher
 
-    def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
+    async def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
         """Generates a single synthetic test case from a context slice.
 
         Args:
@@ -68,7 +68,7 @@ class CompositorImpl(Compositor):
 
         # Generate structured output from Teacher
         # We pass context_slice.content as 'context' to the teacher as well.
-        output = self.teacher.generate_structured(
+        output = await self.teacher.generate_structured(
             prompt=prompt, response_model=GenerationOutput, context=context_slice.content
         )
 

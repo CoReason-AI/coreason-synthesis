@@ -17,6 +17,7 @@ to score generated cases and filter them based on quality metrics.
 
 from typing import List, cast
 
+import anyio
 import numpy as np
 from pydantic import BaseModel, Field
 
@@ -52,7 +53,7 @@ class AppraiserImpl(Appraiser):
         self.teacher = teacher
         self.embedder = embedder
 
-    def appraise(
+    async def appraise(
         self,
         cases: List[SyntheticTestCase],
         template: SynthesisTemplate,
@@ -85,33 +86,18 @@ class AppraiserImpl(Appraiser):
             diversity_score = 0.0
             if centroid_np is not None:
                 # Embed the verbatim context (The "Real Data")
-                case_vec = self.embedder.embed(case.verbatim_context)
-                case_np = np.array(case_vec)
+                # This involves I/O if the embedder is remote
+                case_vec = await self.embedder.embed(case.verbatim_context)
 
-                # Check dimensions to prevent crash
-                if case_np.shape != centroid_np.shape:
-                    # Log warning or handle? For now, we'll just skip diversity calc (default 0)
-                    # ideally we should raise or log, but to match interface we proceed safely
-                    pass
-                else:
-                    # Also cast case_norm to be safe
-                    case_norm = float(np.linalg.norm(case_np))
-
-                    if centroid_norm > 0 and case_norm > 0:
-                        # Explicitly cast to float to satisfy mypy
-                        # Use casting to ensure Mypy treats it as a float, even if numpy returns a scalar type
-                        sim_val = np.dot(case_np, centroid_np) / (case_norm * centroid_norm)
-                        cosine_sim = float(sim_val)
-
-                        # Diversity = 1 - Cosine Similarity (Distance)
-                        # Clip to [0, 1] range to match requirement
-                        # Ensure all inputs to min/max are native floats
-                        # Force float conversion to handle potential numpy scalars in strict environments
-                        diversity_score = cast(float, max(0.0, min(1.0, 1.0 - cosine_sim)))  # type: ignore[redundant-cast]
+                # Numpy calculations (CPU bound)
+                diversity_score = await anyio.to_thread.run_sync(
+                    self._calculate_diversity, case_vec, centroid_np, centroid_norm
+                )
 
             # 2. Calculate Complexity, Ambiguity, Validity via Teacher
             prompt = self._construct_prompt(case, template)
-            analysis: AppraisalAnalysis = self.teacher.generate_structured(prompt, AppraisalAnalysis)
+            # This involves LLM call (I/O bound)
+            analysis: AppraisalAnalysis = await self.teacher.generate_structured(prompt, AppraisalAnalysis)
 
             # 3. Update Case Metrics
             # Use model_copy to create a new instance with updated metrics
@@ -132,6 +118,36 @@ class AppraiserImpl(Appraiser):
 
         # 5. Sort Cases
         return self._sort_cases(appraised_cases, sort_by)
+
+    def _calculate_diversity(self, case_vec: List[float], centroid_np: np.ndarray, centroid_norm: float) -> float:
+        """Calculates diversity score.
+
+        Note: Mypy issues with numpy types are tricky. We cast aggressively to float.
+        """
+        case_np = np.array(case_vec)
+        diversity_score = 0.0
+
+        # Check dimensions to prevent crash
+        if case_np.shape != centroid_np.shape:
+            # Log warning or handle? For now, we'll just skip diversity calc (default 0)
+            return 0.0
+
+        # Also cast case_norm to be safe
+        case_norm = float(np.linalg.norm(case_np))
+
+        if centroid_norm > 0 and case_norm > 0:
+            # Explicitly cast to float to satisfy mypy
+            # Use casting to ensure Mypy treats it as a float, even if numpy returns a scalar type
+            sim_val = np.dot(case_np, centroid_np) / (case_norm * centroid_norm)
+            cosine_sim = float(sim_val)
+
+            # Diversity = 1 - Cosine Similarity (Distance)
+            # Clip to [0, 1] range to match requirement
+            # Ensure all inputs to min/max are native floats
+            # Force float conversion to handle potential numpy scalars in strict environments
+            diversity_score = cast(float, max(0.0, min(1.0, 1.0 - cosine_sim)))  # type: ignore[redundant-cast]
+
+        return diversity_score
 
     def _construct_prompt(self, case: SyntheticTestCase, template: SynthesisTemplate) -> str:
         """Constructs the prompt for the Teacher Model (Judge).

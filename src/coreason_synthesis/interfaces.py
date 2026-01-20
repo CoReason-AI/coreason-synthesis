@@ -40,7 +40,7 @@ class TeacherModel(ABC):
     """
 
     @abstractmethod
-    def generate(self, prompt: str, context: Optional[str] = None) -> str:
+    async def generate(self, prompt: str, context: Optional[str] = None) -> str:
         """Generates text based on a prompt and optional context.
 
         Args:
@@ -54,7 +54,7 @@ class TeacherModel(ABC):
         pass
 
     @abstractmethod
-    def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+    async def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
         """Generates a structured object based on a prompt and optional context.
 
         Args:
@@ -76,7 +76,7 @@ class EmbeddingService(ABC):
     """
 
     @abstractmethod
-    def embed(self, text: str) -> List[float]:
+    async def embed(self, text: str) -> List[float]:
         """Generates a vector embedding for the given text.
 
         Args:
@@ -96,7 +96,7 @@ class MCPClient(ABC):
     """
 
     @abstractmethod
-    def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+    async def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
         """Searches the MCP for relevant documents using a vector query.
 
         Args:
@@ -119,7 +119,7 @@ class PatternAnalyzer(ABC):
     """
 
     @abstractmethod
-    def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
+    async def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
         """Analyzes seed cases to extract a synthesis template and vector centroid.
 
         Args:
@@ -140,7 +140,9 @@ class Forager(ABC):
     """
 
     @abstractmethod
-    def forage(self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10) -> List[Document]:
+    async def forage(
+        self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10
+    ) -> List[Document]:
         """Retrieves documents based on the synthesis template's centroid.
 
         Args:
@@ -162,7 +164,7 @@ class Extractor(ABC):
     """
 
     @abstractmethod
-    def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
+    async def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
         """Extracts relevant text slices from documents matching the template structure.
 
         Args:
@@ -184,7 +186,7 @@ class Compositor(ABC):
     """
 
     @abstractmethod
-    def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
+    async def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
         """Generates a single synthetic test case from a context slice.
 
         Args:
@@ -205,7 +207,7 @@ class Perturbator(ABC):
     """
 
     @abstractmethod
-    def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
+    async def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
         """Applies perturbations to a test case to create variants.
 
         Args:
@@ -226,7 +228,7 @@ class Appraiser(ABC):
     """
 
     @abstractmethod
-    def appraise(
+    async def appraise(
         self,
         cases: List[SyntheticTestCase],
         template: SynthesisTemplate,
