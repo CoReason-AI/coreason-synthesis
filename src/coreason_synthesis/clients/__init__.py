@@ -8,8 +8,6 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
-from coreason_synthesis.main import hello_world
-
-
-def test_hello_world() -> None:
-    assert hello_world() == "Hello World!"
+"""
+Clients package for external integrations.
+"""

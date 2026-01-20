@@ -8,9 +8,6 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
-from coreason_synthesis.utils.logger import logger
-
-
-def hello_world() -> str:
-    logger.info("Hello World!")
-    return "Hello World!"
+"""
+Mocks package for testing and offline mode.
+"""
