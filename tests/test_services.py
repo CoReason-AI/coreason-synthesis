@@ -57,3 +57,28 @@ class TestHttpMCPClient:
         client = HttpMCPClient(base_url="http://test.mcp")
         # Ensure no crash
         assert client.base_url == "http://test.mcp"
+
+    @pytest.mark.asyncio
+    async def test_close_internal_client(self) -> None:
+        """Test that close() closes the internal client."""
+        client = HttpMCPClient(base_url="http://test.mcp")
+        # Spy on the internal client
+        # We can't easily replace it after init, so we rely on calling close and checking state or mocking.
+        # Let's mock aclose
+        client._client.aclose = pytest.AsyncMock()  # type: ignore
+
+        await client.close()
+
+        client._client.aclose.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_close_external_client(self) -> None:
+        """Test that close() does NOT close an external client."""
+        external_client = httpx.AsyncClient()
+        external_client.aclose = pytest.AsyncMock()  # type: ignore
+
+        client = HttpMCPClient(base_url="http://test.mcp", client=external_client)
+
+        await client.close()
+
+        external_client.aclose.assert_not_called()

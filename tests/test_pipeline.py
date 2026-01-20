@@ -9,9 +9,10 @@
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
 from typing import Any, Dict, List
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from coreason_synthesis.interfaces import (
@@ -172,11 +173,6 @@ def test_pipeline_sync_wrapper(
     results = pipeline_sync.run(sample_seeds, config, user_context)
 
     assert results == []
-    # If this passes, it means anyio.run was called and the async method executed
-    # We can check if analyzer was awaited
-    # Note: unittest.mock.AsyncMock interaction recording might be tricky across threads if not careful,
-    # but typically works if the object is shared.
-    # However, since anyio.run might run in the same thread (if blocking) or another, we should just verify result.
 
 
 @pytest.mark.asyncio
@@ -279,3 +275,40 @@ async def test_pipeline_async_exception_propagation(
 
     with pytest.raises(ValueError, match="Analysis Failed"):
         await pipeline_async.run(sample_seeds, {}, {})
+
+
+@pytest.mark.asyncio
+async def test_pipeline_async_context_manager(async_mock_components: Dict[str, AsyncMock]) -> None:
+    """Test that the async context manager correctly closes the internal client."""
+
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
+
+    pipeline = SynthesisPipelineAsync(**async_mock_components, client=mock_client)
+    async with pipeline as p:
+        assert p is pipeline
+
+    mock_client.aclose.assert_not_called()
+
+    with patch("httpx.AsyncClient") as mock_httpx_cls:
+        mock_internal_client = AsyncMock()
+        mock_httpx_cls.return_value = mock_internal_client
+
+        pipeline_internal = SynthesisPipelineAsync(**async_mock_components)
+
+        async with pipeline_internal as p:
+            assert p is pipeline_internal
+
+        mock_internal_client.aclose.assert_awaited_once()
+
+
+def test_pipeline_sync_context_manager(async_mock_components: Dict[str, AsyncMock]) -> None:
+    """Test that the sync context manager correctly wraps the async one."""
+
+    pipeline_sync = SynthesisPipeline(**async_mock_components)
+
+    pipeline_sync._async.__aexit__ = AsyncMock()  # type: ignore
+
+    with pipeline_sync as p:
+        assert p is pipeline_sync
+
+    assert pipeline_sync._async.__aexit__.call_count == 1
