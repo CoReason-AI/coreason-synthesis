@@ -1,33 +1,67 @@
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_synthesis
+
+import httpx
 import pytest
-from pydantic import BaseModel
+import respx
+from pydantic import ValidationError
 
-from coreason_synthesis.services import MockTeacher
-
-
-class RandomModel(BaseModel):
-    field: str
+from coreason_synthesis.clients.mcp import HttpMCPClient
 
 
-def test_mock_teacher_unknown_model_error() -> None:
-    """Test that MockTeacher raises NotImplementedError for unknown models."""
-    teacher = MockTeacher()
-    with pytest.raises(
-        NotImplementedError, match="MockTeacher.generate_structured does not know how to mock RandomModel"
-    ):
-        teacher.generate_structured("prompt", RandomModel)
+class TestHttpMCPClientEdgeCases:
+    @pytest.fixture
+    def client(self) -> HttpMCPClient:
+        return HttpMCPClient(base_url="http://test.mcp")
 
+    @respx.mock  # type: ignore[misc]
+    @pytest.mark.asyncio
+    async def test_search_empty_results(self, client: HttpMCPClient) -> None:
+        respx.post("http://test.mcp/search").mock(return_value=httpx.Response(200, json={"results": []}))
+        docs = await client.search([0.1], {}, 10)
+        assert docs == []
 
-def test_mock_teacher_synthesis_template_partial() -> None:
-    """Test the exception block in MockTeacher by passing a model that matches name but not fields."""
+    @respx.mock  # type: ignore[misc]
+    @pytest.mark.asyncio
+    async def test_search_malformed_json_response(self, client: HttpMCPClient) -> None:
+        # Server returns valid JSON but missing 'results' key
+        respx.post("http://test.mcp/search").mock(return_value=httpx.Response(200, json={"data": []}))
+        # Should return empty list (get('results', []) defaults to [])
+        docs = await client.search([0.1], {}, 10)
+        assert docs == []
 
-    # Define a model with matching name but strict required fields that differ from default mock
-    class SynthesisTemplate(BaseModel):
-        required_field_not_in_mock: str
+    @respx.mock  # type: ignore[misc]
+    @pytest.mark.asyncio
+    async def test_search_invalid_document_structure(self, client: HttpMCPClient) -> None:
+        # 'content' is missing in one item
+        bad_data = {"results": [{"source_urn": "u1"}]}
+        respx.post("http://test.mcp/search").mock(return_value=httpx.Response(200, json=bad_data))
 
-    teacher = MockTeacher()
-    # This should hit the except Exception block and then fall through to NotImplementedError
-    # or handle it gracefully if we change the implementation.
-    # Current implementation: pass in except, then raise NotImplementedError at end.
+        # Catch specific ValidationError
+        with pytest.raises(ValidationError):
+            await client.search([0.1], {}, 10)
 
-    with pytest.raises(NotImplementedError):
-        teacher.generate_structured("prompt", SynthesisTemplate)
+    @respx.mock  # type: ignore[misc]
+    @pytest.mark.asyncio
+    async def test_search_unauthorized(self, client: HttpMCPClient) -> None:
+        respx.post("http://test.mcp/search").mock(return_value=httpx.Response(401))
+
+        with pytest.raises(httpx.HTTPStatusError) as exc:
+            await client.search([0.1], {}, 10)
+        assert exc.value.response.status_code == 401
+
+    @respx.mock  # type: ignore[misc]
+    @pytest.mark.asyncio
+    async def test_search_timeout(self, client: HttpMCPClient) -> None:
+        # Simulate timeout
+        respx.post("http://test.mcp/search").mock(side_effect=httpx.TimeoutException("Timeout"))
+
+        with pytest.raises(httpx.TimeoutException):
+            await client.search([0.1], {}, 10)

@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Logging configuration module.
+
+Configures the `loguru` logger for the application, setting up both console
+and file output with appropriate formatting and rotation policies.
+"""
+
 import sys
 from pathlib import Path
 

@@ -1,26 +1,61 @@
-from typing import Any, Dict, List
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Foraging module.
+
+This module implements the retrieval logic for finding relevant documents
+from the MCP (Model Context Protocol) knowledge base, ensuring diversity
+via Maximal Marginal Relevance (MMR).
+"""
+
+from typing import Any, Dict, List, cast
+
+import anyio
 import numpy as np
 
-from .interfaces import Forager
+from .interfaces import EmbeddingService, Forager, MCPClient
 from .models import Document, SynthesisTemplate
-from .services import EmbeddingService, MCPClient
 
 
 class ForagerImpl(Forager):
-    """
-    Concrete implementation of the Forager.
-    Retrieves documents from MCP and enforces diversity using MMR.
+    """Concrete implementation of the Forager.
+
+    Retrieves documents from MCP and enforces diversity using MMR to prevent
+    duplicates and ensure a broad coverage of the domain.
     """
 
     def __init__(self, mcp_client: MCPClient, embedder: EmbeddingService):
+        """Initializes the Forager.
+
+        Args:
+            mcp_client: Client for the Model Context Protocol.
+            embedder: Service for calculating embeddings (used in MMR).
+        """
         self.mcp_client = mcp_client
         self.embedder = embedder
 
-    def forage(self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10) -> List[Document]:
-        """
-        Retrieves documents based on the synthesis template's centroid.
+    async def forage(
+        self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10
+    ) -> List[Document]:
+        """Retrieves documents based on the synthesis template's centroid.
+
         Applies Maximal Marginal Relevance (MMR) to ensure diversity.
+
+        Args:
+            template: The synthesis template containing the vector centroid.
+            user_context: Context for RBAC (e.g., auth token, user ID).
+            limit: Maximum number of documents to retrieve. Defaults to 10.
+
+        Returns:
+            List of retrieved and diversified Documents.
         """
         if not template.embedding_centroid:
             # Fallback if no centroid is present (should not happen in normal flow)
@@ -31,21 +66,21 @@ class ForagerImpl(Forager):
         # We fetch more than 'limit' to allow for filtering/re-ranking
         # Fetching 5x the limit is a common heuristic
         fetch_limit = limit * 5
-        candidates = self.mcp_client.search(template.embedding_centroid, user_context, fetch_limit)
+        candidates = await self.mcp_client.search(template.embedding_centroid, user_context, fetch_limit)
 
         if not candidates:
             return []
 
         # 2. Apply MMR for Diversity
-        selected_docs = self._apply_mmr(template.embedding_centroid, candidates, limit)
+        # MMR calculation is CPU intensive, so we offload it to a thread
+        selected_docs = await self._apply_mmr(template.embedding_centroid, candidates, limit)
 
         return selected_docs
 
-    def _apply_mmr(
+    async def _apply_mmr(
         self, query_vector: List[float], candidates: List[Document], limit: int, lambda_param: float = 0.5
     ) -> List[Document]:
-        """
-        Applies Maximal Marginal Relevance (MMR) ranking.
+        """Applies Maximal Marginal Relevance (MMR) ranking.
 
         MMR = ArgMax [ lambda * Sim(Di, Q) - (1-lambda) * max(Sim(Di, Dj)) ]
         where Q is query, Di is candidate, Dj is already selected.
@@ -55,6 +90,7 @@ class ForagerImpl(Forager):
             candidates: List of candidate documents.
             limit: Number of documents to select.
             lambda_param: Trade-off between relevance (1.0) and diversity (0.0).
+                Defaults to 0.5.
 
         Returns:
             List of selected Documents.
@@ -62,17 +98,41 @@ class ForagerImpl(Forager):
         if not candidates:
             return []
 
+        # Pre-calculate embeddings for all candidates
+        # This might involve I/O if the embedder calls an external service
+        candidate_embeddings = []
+        for doc in candidates:
+            emb = np.array(await self.embedder.embed(doc.content))
+            candidate_embeddings.append(emb)
+
+        # The actual MMR calculation is purely CPU bound.
+        # We can run it in a thread if the number of candidates is large.
+        # For now, let's wrap the numpy heavy part.
+
+        return cast(
+            List[Document],
+            await anyio.to_thread.run_sync(
+                self._calculate_mmr_sync,
+                query_vector,
+                candidates,
+                candidate_embeddings,
+                limit,
+                lambda_param,
+            ),
+        )
+
+    def _calculate_mmr_sync(
+        self,
+        query_vector: List[float],
+        candidates: List[Document],
+        candidate_embeddings: List[np.ndarray],
+        limit: int,
+        lambda_param: float,
+    ) -> List[Document]:
+        """Synchronous part of MMR calculation."""
         # Convert query to numpy array
         query_np = np.array(query_vector)
         query_norm = np.linalg.norm(query_np)
-
-        # Pre-calculate embeddings for all candidates
-        # Note: In a production system, MCP might return embeddings to avoid re-embedding.
-        # Here we use the embedder service.
-        candidate_embeddings = []
-        for doc in candidates:
-            emb = np.array(self.embedder.embed(doc.content))
-            candidate_embeddings.append(emb)
 
         # Calculate Similarity(Candidate, Query)
         # Cosine similarity: (A . B) / (|A| * |B|)

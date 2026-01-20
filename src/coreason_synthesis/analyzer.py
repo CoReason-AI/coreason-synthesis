@@ -1,15 +1,35 @@
-from typing import List
+# Copyright (c) 2025 CoReason, Inc.
+#
+# This software is proprietary and dual-licensed.
+# Licensed under the Prosperity Public License 3.0 (the "License").
+# A copy of the license is available at https://prosperitylicense.com/versions/3.0.0
+# For details, see the LICENSE file.
+# Commercial use beyond a 30-day trial requires a separate license.
+#
+# Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Pattern analysis module.
+
+This module implements the logic for analyzing user-provided seed cases
+to extract the underlying testing intent, structure, and domain context.
+"""
+
+from typing import List, cast
+
+import anyio
 import numpy as np
 from pydantic import BaseModel, Field
 
-from .interfaces import PatternAnalyzer, TeacherModel
+from .interfaces import EmbeddingService, PatternAnalyzer, TeacherModel
 from .models import SeedCase, SynthesisTemplate
-from .services import EmbeddingService
 
 
 class TemplateAnalysis(BaseModel):
-    """Internal model for the structured output of the TeacherModel analysis."""
+    """Internal model for the structured output of the TeacherModel analysis.
+
+    Used to strictly type the output from the Teacher Model when analyzing seeds.
+    """
 
     structure: str = Field(..., description="Description of the question/output structure")
     complexity_description: str = Field(..., description="Description of the complexity")
@@ -17,18 +37,32 @@ class TemplateAnalysis(BaseModel):
 
 
 class PatternAnalyzerImpl(PatternAnalyzer):
-    """
-    Concrete implementation of the PatternAnalyzer.
+    """Concrete implementation of the PatternAnalyzer.
+
     Uses an EmbeddingService to calculate centroids and a TeacherModel to extract templates.
     """
 
     def __init__(self, teacher: TeacherModel, embedder: EmbeddingService):
+        """Initializes the PatternAnalyzer.
+
+        Args:
+            teacher: The LLM service for pattern extraction.
+            embedder: The embedding service for vector calculation.
+        """
         self.teacher = teacher
         self.embedder = embedder
 
-    def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
-        """
-        Analyzes seed cases to extract a synthesis template and vector centroid.
+    async def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
+        """Analyzes seed cases to extract a synthesis template and vector centroid.
+
+        Args:
+            seeds: List of user-provided seed cases.
+
+        Returns:
+            A SynthesisTemplate containing the extracted pattern and centroid.
+
+        Raises:
+            ValueError: If the input list of seeds is empty.
         """
         if not seeds:
             raise ValueError("Seed list cannot be empty.")
@@ -37,11 +71,12 @@ class PatternAnalyzerImpl(PatternAnalyzer):
         embeddings = []
         for seed in seeds:
             # Embed the context of the seed (most relevant for retrieval)
-            vector = self.embedder.embed(seed.context)
+            vector = await self.embedder.embed(seed.context)
             embeddings.append(vector)
 
         # Calculate mean vector (centroid)
-        centroid = np.mean(embeddings, axis=0).tolist()
+        # This is a CPU-bound numpy operation
+        centroid = await anyio.to_thread.run_sync(self._calculate_centroid, embeddings)
 
         # 2. Extract Template via Teacher
         # Construct a prompt for the teacher
@@ -59,7 +94,7 @@ class PatternAnalyzerImpl(PatternAnalyzer):
         )
 
         # Use generate_structured to get a typed response
-        analysis: TemplateAnalysis = self.teacher.generate_structured(prompt, TemplateAnalysis)
+        analysis: TemplateAnalysis = await self.teacher.generate_structured(prompt, TemplateAnalysis)
 
         return SynthesisTemplate(
             structure=analysis.structure,
@@ -67,3 +102,10 @@ class PatternAnalyzerImpl(PatternAnalyzer):
             domain=analysis.domain,
             embedding_centroid=centroid,
         )
+
+    def _calculate_centroid(self, embeddings: List[List[float]]) -> List[float]:
+        """Calculates the mean vector from a list of embeddings."""
+        # Using cast to help mypy understand the return type from numpy operation which might be inferred
+        # as Any or ndarray. tolist() converts it to python list of floats.
+        result = np.mean(embeddings, axis=0).tolist()
+        return cast(List[float], result)
