@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Pattern analysis module.
+
+This module implements the logic for analyzing user-provided seed cases
+to extract the underlying testing intent, structure, and domain context.
+"""
+
 from typing import List
 
 import numpy as np
@@ -18,7 +25,10 @@ from .models import SeedCase, SynthesisTemplate
 
 
 class TemplateAnalysis(BaseModel):
-    """Internal model for the structured output of the TeacherModel analysis."""
+    """Internal model for the structured output of the TeacherModel analysis.
+
+    Used to strictly type the output from the Teacher Model when analyzing seeds.
+    """
 
     structure: str = Field(..., description="Description of the question/output structure")
     complexity_description: str = Field(..., description="Description of the complexity")
@@ -26,18 +36,32 @@ class TemplateAnalysis(BaseModel):
 
 
 class PatternAnalyzerImpl(PatternAnalyzer):
-    """
-    Concrete implementation of the PatternAnalyzer.
+    """Concrete implementation of the PatternAnalyzer.
+
     Uses an EmbeddingService to calculate centroids and a TeacherModel to extract templates.
     """
 
     def __init__(self, teacher: TeacherModel, embedder: EmbeddingService):
+        """Initializes the PatternAnalyzer.
+
+        Args:
+            teacher: The LLM service for pattern extraction.
+            embedder: The embedding service for vector calculation.
+        """
         self.teacher = teacher
         self.embedder = embedder
 
     def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
-        """
-        Analyzes seed cases to extract a synthesis template and vector centroid.
+        """Analyzes seed cases to extract a synthesis template and vector centroid.
+
+        Args:
+            seeds: List of user-provided seed cases.
+
+        Returns:
+            A SynthesisTemplate containing the extracted pattern and centroid.
+
+        Raises:
+            ValueError: If the input list of seeds is empty.
         """
         if not seeds:
             raise ValueError("Seed list cannot be empty.")

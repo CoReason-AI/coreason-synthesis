@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Extraction and sanitization module.
+
+This module is responsible for mining usable text chunks from retrieved documents
+and ensuring all Personally Identifiable Information (PII) is redacted before use.
+"""
+
 import re
 from typing import List
 
@@ -16,15 +23,22 @@ from .models import Document, ExtractedSlice, SynthesisTemplate
 
 
 class ExtractorImpl(Extractor):
-    """
-    Concrete implementation of the Extractor.
-    Mines text slices using heuristic chunking and sanitizes PII.
+    """Concrete implementation of the Extractor.
+
+    Mines text slices using heuristic chunking and sanitizes PII using regex patterns.
     """
 
     def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
-        """
-        Extracts text slices from documents.
+        """Extracts text slices from documents.
+
         Applies PII sanitization and maps back to source.
+
+        Args:
+            documents: List of retrieved documents.
+            template: The synthesis template (used for potential structure matching).
+
+        Returns:
+            List of extracted text slices (verbatim).
         """
         extracted_slices: List[ExtractedSlice] = []
 
@@ -59,9 +73,15 @@ class ExtractorImpl(Extractor):
         return extracted_slices
 
     def _chunk_content(self, content: str) -> List[str]:
-        """
-        Splits content into paragraphs based on double newlines.
-        Handles mixed line endings by normalizing to \n.
+        """Splits content into paragraphs based on double newlines.
+
+        Handles mixed line endings by normalizing to \\n.
+
+        Args:
+            content: The raw document content.
+
+        Returns:
+            List of text chunks (paragraphs).
         """
         if not content:
             return []
@@ -72,8 +92,13 @@ class ExtractorImpl(Extractor):
         return [c.strip() for c in normalized.split("\n\n") if c.strip()]
 
     def _is_valid_chunk(self, chunk: str) -> bool:
-        """
-        Filters out chunks that are too short or irrelevant.
+        """Filters out chunks that are too short or irrelevant.
+
+        Args:
+            chunk: The text chunk to evaluate.
+
+        Returns:
+            True if the chunk is valid for synthesis, False otherwise.
         """
         # Minimum character count to be considered a useful context
         if len(chunk) < 50:
@@ -81,9 +106,13 @@ class ExtractorImpl(Extractor):
         return True
 
     def _sanitize(self, text: str) -> tuple[str, bool]:
-        """
-        Sanitizes PII from the text using Regex.
-        Returns (sanitized_text, was_redacted).
+        """Sanitizes PII from the text using Regex.
+
+        Args:
+            text: The text to sanitize.
+
+        Returns:
+            A tuple containing (sanitized_text, was_redacted).
         """
         sanitized_text = text
         redacted = False

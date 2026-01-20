@@ -8,6 +8,10 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Mock Teacher Model for testing.
+"""
+
 from typing import Optional, Type
 
 from coreason_synthesis.interfaces import T, TeacherModel
@@ -17,8 +21,14 @@ class MockTeacher(TeacherModel):
     """Deterministic mock teacher model for testing."""
 
     def generate(self, prompt: str, context: Optional[str] = None) -> str:
-        """
-        Returns a mock response based on the prompt content.
+        """Returns a mock response based on the prompt content.
+
+        Args:
+            prompt: The input prompt.
+            context: Optional context.
+
+        Returns:
+            A string response.
         """
         if "structure" in prompt.lower():
             return (
@@ -29,8 +39,18 @@ class MockTeacher(TeacherModel):
         return "Mock generated response"
 
     def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
-        """
-        Returns a mock structured response based on the prompt content and response model.
+        """Returns a mock structured response based on the prompt content and response model.
+
+        Args:
+            prompt: The input prompt.
+            response_model: The Pydantic model to populate.
+            context: Optional context.
+
+        Returns:
+            An instance of response_model populated with mock data.
+
+        Raises:
+            NotImplementedError: If the response_model is not supported by the mock.
         """
         # We need to construct a dummy instance of T.
         # This is tricky without knowing the exact structure of T, but for our tests we know what T will be.

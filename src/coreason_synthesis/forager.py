@@ -8,6 +8,14 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Foraging module.
+
+This module implements the retrieval logic for finding relevant documents
+from the MCP (Model Context Protocol) knowledge base, ensuring diversity
+via Maximal Marginal Relevance (MMR).
+"""
+
 from typing import Any, Dict, List
 
 import numpy as np
@@ -17,19 +25,34 @@ from .models import Document, SynthesisTemplate
 
 
 class ForagerImpl(Forager):
-    """
-    Concrete implementation of the Forager.
-    Retrieves documents from MCP and enforces diversity using MMR.
+    """Concrete implementation of the Forager.
+
+    Retrieves documents from MCP and enforces diversity using MMR to prevent
+    duplicates and ensure a broad coverage of the domain.
     """
 
     def __init__(self, mcp_client: MCPClient, embedder: EmbeddingService):
+        """Initializes the Forager.
+
+        Args:
+            mcp_client: Client for the Model Context Protocol.
+            embedder: Service for calculating embeddings (used in MMR).
+        """
         self.mcp_client = mcp_client
         self.embedder = embedder
 
     def forage(self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10) -> List[Document]:
-        """
-        Retrieves documents based on the synthesis template's centroid.
+        """Retrieves documents based on the synthesis template's centroid.
+
         Applies Maximal Marginal Relevance (MMR) to ensure diversity.
+
+        Args:
+            template: The synthesis template containing the vector centroid.
+            user_context: Context for RBAC (e.g., auth token, user ID).
+            limit: Maximum number of documents to retrieve. Defaults to 10.
+
+        Returns:
+            List of retrieved and diversified Documents.
         """
         if not template.embedding_centroid:
             # Fallback if no centroid is present (should not happen in normal flow)
@@ -53,8 +76,7 @@ class ForagerImpl(Forager):
     def _apply_mmr(
         self, query_vector: List[float], candidates: List[Document], limit: int, lambda_param: float = 0.5
     ) -> List[Document]:
-        """
-        Applies Maximal Marginal Relevance (MMR) ranking.
+        """Applies Maximal Marginal Relevance (MMR) ranking.
 
         MMR = ArgMax [ lambda * Sim(Di, Q) - (1-lambda) * max(Sim(Di, Dj)) ]
         where Q is query, Di is candidate, Dj is already selected.
@@ -64,6 +86,7 @@ class ForagerImpl(Forager):
             candidates: List of candidate documents.
             limit: Number of documents to select.
             lambda_param: Trade-off between relevance (1.0) and diversity (0.0).
+                Defaults to 0.5.
 
         Returns:
             List of selected Documents.

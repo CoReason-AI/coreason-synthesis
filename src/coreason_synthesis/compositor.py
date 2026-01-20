@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Composition module.
+
+This module is responsible for the 'Fabricate' phase, where real data is wrapped
+in synthetic questions and reasoning chains using a Teacher Model.
+"""
+
 from typing import Any, Dict
 
 from pydantic import BaseModel, Field
@@ -22,7 +29,10 @@ from .models import (
 
 
 class GenerationOutput(BaseModel):
-    """Internal model for the Teacher's structured output."""
+    """Internal model for the Teacher's structured output.
+
+    Contains the generated question, reasoning chain, and expected output.
+    """
 
     synthetic_question: str = Field(..., description="The generated question based on the context")
     golden_chain_of_thought: str = Field(..., description="Step-by-step reasoning to reach the answer")
@@ -30,17 +40,28 @@ class GenerationOutput(BaseModel):
 
 
 class CompositorImpl(Compositor):
-    """
-    Concrete implementation of the Compositor.
+    """Concrete implementation of the Compositor.
+
     Wraps real data in synthetic interactions using a Teacher Model.
     """
 
     def __init__(self, teacher: TeacherModel):
+        """Initializes the Compositor.
+
+        Args:
+            teacher: The LLM service for content generation.
+        """
         self.teacher = teacher
 
     def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
-        """
-        Generates a single synthetic test case from a context slice.
+        """Generates a single synthetic test case from a context slice.
+
+        Args:
+            context_slice: The verbatim text slice.
+            template: The synthesis template to guide generation.
+
+        Returns:
+            A draft SyntheticTestCase with VERBATIM_SOURCE provenance.
         """
         # Construct the prompt
         prompt = self._construct_prompt(context_slice.content, template)
@@ -67,8 +88,14 @@ class CompositorImpl(Compositor):
         )
 
     def _construct_prompt(self, context: str, template: SynthesisTemplate) -> str:
-        """
-        Constructs the prompt for the Teacher Model.
+        """Constructs the prompt for the Teacher Model.
+
+        Args:
+            context: The text context.
+            template: The synthesis template.
+
+        Returns:
+            A formatted prompt string.
         """
         return (
             f"You are an expert Data Synthesizer for the domain: {template.domain}.\n"
