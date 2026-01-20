@@ -79,10 +79,10 @@ def test_concrete_implementations() -> None:
     """Ensure that concrete implementations work if they implement all abstract methods."""
 
     class ConcreteTeacher(TeacherModel):
-        def generate(self, prompt: str, context: Optional[str] = None) -> str:
+        async def generate(self, prompt: str, context: Optional[str] = None) -> str:
             return "generated"
 
-        def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
+        async def generate_structured(self, prompt: str, response_model: Type[T], context: Optional[str] = None) -> T:
             # Simple dummy implementation for test
             try:
                 return response_model()
@@ -91,19 +91,21 @@ def test_concrete_implementations() -> None:
                 raise NotImplementedError from e
 
     class ConcreteAnalyzer(PatternAnalyzer):
-        def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
+        async def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
             return SynthesisTemplate(structure="s", complexity_description="c", domain="d", embedding_centroid=[0.1])
 
     class ConcreteForager(Forager):
-        def forage(self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10) -> List[Document]:
+        async def forage(
+            self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10
+        ) -> List[Document]:
             return [Document(content="c", source_urn="u")]
 
     class ConcreteExtractor(Extractor):
-        def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
+        async def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
             return [ExtractedSlice(content="slice", source_urn="u", page_number=1, pii_redacted=False, metadata={})]
 
     class ConcreteCompositor(Compositor):
-        def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
+        async def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
             return SyntheticTestCase(
                 verbatim_context=context_slice.content,
                 synthetic_question="q",
@@ -117,11 +119,11 @@ def test_concrete_implementations() -> None:
             )
 
     class ConcretePerturbator(Perturbator):
-        def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
+        async def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
             return [case]
 
     class ConcreteAppraiser(Appraiser):
-        def appraise(
+        async def appraise(
             self,
             cases: List[SyntheticTestCase],
             template: SynthesisTemplate,
@@ -140,7 +142,8 @@ def test_concrete_implementations() -> None:
     ConcreteAppraiser()
 
 
-def test_workflow_simulation() -> None:
+@pytest.mark.asyncio
+async def test_workflow_simulation() -> None:
     """
     Simulates a full workflow by chaining concrete implementations of the interfaces.
     This verifies that the output type of one component matches the input type of the next.
@@ -148,18 +151,20 @@ def test_workflow_simulation() -> None:
 
     # 1. Define Concrete Implementations acting as Mocks
     class MockAnalyzer(PatternAnalyzer):
-        def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
+        async def analyze(self, seeds: List[SeedCase]) -> SynthesisTemplate:
             return SynthesisTemplate(
                 structure="QA_Format", complexity_description="High", domain="Finance", embedding_centroid=[0.5, 0.5]
             )
 
     class MockForager(Forager):
-        def forage(self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10) -> List[Document]:
+        async def forage(
+            self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10
+        ) -> List[Document]:
             assert template.domain == "Finance"
             return [Document(content="Financial Report 2024...", source_urn="http://example.com/report")]
 
     class MockExtractor(Extractor):
-        def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
+        async def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
             assert len(documents) > 0
             return [
                 ExtractedSlice(
@@ -172,7 +177,7 @@ def test_workflow_simulation() -> None:
             ]
 
     class MockCompositor(Compositor):
-        def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
+        async def composite(self, context_slice: ExtractedSlice, template: SynthesisTemplate) -> SyntheticTestCase:
             return SyntheticTestCase(
                 verbatim_context=context_slice.content,
                 synthetic_question="What is the revenue?",
@@ -186,7 +191,7 @@ def test_workflow_simulation() -> None:
             )
 
     class MockAppraiser(Appraiser):
-        def appraise(
+        async def appraise(
             self,
             cases: List[SyntheticTestCase],
             template: SynthesisTemplate,
@@ -205,24 +210,24 @@ def test_workflow_simulation() -> None:
     # 3. Execute Workflow
     # Step A: Analyze Seeds
     seed = SeedCase(id=uuid4(), context="ctx", question="q", expected_output="a")
-    template = analyzer.analyze([seed])
+    template = await analyzer.analyze([seed])
     assert isinstance(template, SynthesisTemplate)
 
     # Step B: Forage
-    documents = forager.forage(template, user_context={})
+    documents = await forager.forage(template, user_context={})
     assert isinstance(documents[0], Document)
 
     # Step C: Extract
-    slices = extractor.extract(documents, template)
+    slices = await extractor.extract(documents, template)
     assert len(slices) == 1
     assert slices[0].content == "Financial Report 2024..."
 
     # Step D: Composite
-    draft_case = compositor.composite(slices[0], template)
+    draft_case = await compositor.composite(slices[0], template)
     assert isinstance(draft_case, SyntheticTestCase)
     assert draft_case.verbatim_context == "Financial Report 2024..."
 
     # Step E: Appraise
-    final_cases = appraiser.appraise([draft_case], template)
+    final_cases = await appraiser.appraise([draft_case], template)
     assert len(final_cases) == 1
     assert final_cases[0].validity_confidence == 0.95

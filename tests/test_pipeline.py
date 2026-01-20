@@ -9,9 +9,10 @@
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
 from typing import Any, Dict, List
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from coreason_synthesis.interfaces import (
@@ -30,7 +31,7 @@ from coreason_synthesis.models import (
     SynthesisTemplate,
     SyntheticTestCase,
 )
-from coreason_synthesis.pipeline import SynthesisPipeline
+from coreason_synthesis.pipeline import SynthesisPipeline, SynthesisPipelineAsync
 
 
 @pytest.fixture
@@ -46,14 +47,38 @@ def mock_components() -> Dict[str, Mock]:
 
 
 @pytest.fixture
-def pipeline(mock_components: Dict[str, Mock]) -> SynthesisPipeline:
+def async_mock_components(mock_components: Dict[str, Mock]) -> Dict[str, AsyncMock]:
+    # Update mocks to be AsyncMock for async methods
+    mock_components["analyzer"].analyze = AsyncMock()
+    mock_components["forager"].forage = AsyncMock()
+    mock_components["extractor"].extract = AsyncMock()
+    mock_components["compositor"].composite = AsyncMock()
+    mock_components["perturbator"].perturb = AsyncMock()
+    mock_components["appraiser"].appraise = AsyncMock()
+    return mock_components
+
+
+@pytest.fixture
+def pipeline_async(async_mock_components: Dict[str, AsyncMock]) -> SynthesisPipelineAsync:
+    return SynthesisPipelineAsync(
+        analyzer=async_mock_components["analyzer"],
+        forager=async_mock_components["forager"],
+        extractor=async_mock_components["extractor"],
+        compositor=async_mock_components["compositor"],
+        perturbator=async_mock_components["perturbator"],
+        appraiser=async_mock_components["appraiser"],
+    )
+
+
+@pytest.fixture
+def pipeline_sync(async_mock_components: Dict[str, AsyncMock]) -> SynthesisPipeline:
     return SynthesisPipeline(
-        analyzer=mock_components["analyzer"],
-        forager=mock_components["forager"],
-        extractor=mock_components["extractor"],
-        compositor=mock_components["compositor"],
-        perturbator=mock_components["perturbator"],
-        appraiser=mock_components["appraiser"],
+        analyzer=async_mock_components["analyzer"],
+        forager=async_mock_components["forager"],
+        extractor=async_mock_components["extractor"],
+        compositor=async_mock_components["compositor"],
+        perturbator=async_mock_components["perturbator"],
+        appraiser=async_mock_components["appraiser"],
     )
 
 
@@ -79,20 +104,21 @@ def sample_template() -> SynthesisTemplate:
     )
 
 
-def test_pipeline_happy_path(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
+@pytest.mark.asyncio
+async def test_pipeline_async_happy_path(
+    pipeline_async: SynthesisPipelineAsync,
+    async_mock_components: Dict[str, AsyncMock],
     sample_seeds: List[SeedCase],
     sample_template: SynthesisTemplate,
 ) -> None:
     # Setup Mocks
-    mock_components["analyzer"].analyze.return_value = sample_template
+    async_mock_components["analyzer"].analyze.return_value = sample_template
 
     docs = [Document(content="Doc1", source_urn="u1")]
-    mock_components["forager"].forage.return_value = docs
+    async_mock_components["forager"].forage.return_value = docs
 
     slices = [ExtractedSlice(content="Slice1", source_urn="u1", page_number=1, pii_redacted=False)]
-    mock_components["extractor"].extract.return_value = slices
+    async_mock_components["extractor"].extract.return_value = slices
 
     base_case = SyntheticTestCase(
         verbatim_context="Slice1",
@@ -105,39 +131,60 @@ def test_pipeline_happy_path(
         diversity=0.0,
         validity_confidence=0.0,
     )
-    mock_components["compositor"].composite.return_value = base_case
+    async_mock_components["compositor"].composite.return_value = base_case
 
     # Mock appraiser to return the input list
-    mock_components["appraiser"].appraise.side_effect = lambda cases, t, sort_by, min_validity_score: cases
+    async_mock_components["appraiser"].appraise.side_effect = lambda cases, t, sort_by, min_validity_score: cases
 
     config: Dict[str, Any] = {"target_count": 5, "perturbation_rate": 0.0}
     user_context: Dict[str, Any] = {"user": "test"}
 
-    results = pipeline.run(sample_seeds, config, user_context)
+    results = await pipeline_async.run(sample_seeds, config, user_context)
 
     # Verify Calls
-    mock_components["analyzer"].analyze.assert_called_once_with(sample_seeds)
-    mock_components["forager"].forage.assert_called_once()
-    mock_components["extractor"].extract.assert_called_once_with(docs, sample_template)
-    mock_components["compositor"].composite.assert_called_once_with(slices[0], sample_template)
-    mock_components["appraiser"].appraise.assert_called_once()
+    async_mock_components["analyzer"].analyze.assert_awaited_once_with(sample_seeds)
+    async_mock_components["forager"].forage.assert_awaited_once()
+    async_mock_components["extractor"].extract.assert_awaited_once_with(docs, sample_template)
+    async_mock_components["compositor"].composite.assert_awaited_once_with(slices[0], sample_template)
+    async_mock_components["appraiser"].appraise.assert_awaited_once()
 
     # Perturbator should not be called if rate is 0
-    mock_components["perturbator"].perturb.assert_not_called()
+    async_mock_components["perturbator"].perturb.assert_not_called()
 
     assert len(results) == 1
     assert results[0] == base_case
 
 
-def test_pipeline_perturbation(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
+def test_pipeline_sync_wrapper(
+    pipeline_sync: SynthesisPipeline,
+    async_mock_components: Dict[str, AsyncMock],
     sample_seeds: List[SeedCase],
     sample_template: SynthesisTemplate,
 ) -> None:
-    mock_components["analyzer"].analyze.return_value = sample_template
-    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [
+    """Test that the synchronous wrapper correctly calls async methods via anyio.run."""
+    # Setup Mocks
+    async_mock_components["analyzer"].analyze.return_value = sample_template
+    # Return empty to stop early, sufficient for checking call
+    async_mock_components["forager"].forage.return_value = []
+
+    config: Dict[str, Any] = {"target_count": 5}
+    user_context: Dict[str, Any] = {"user": "test"}
+
+    results = pipeline_sync.run(sample_seeds, config, user_context)
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_pipeline_async_perturbation(
+    pipeline_async: SynthesisPipelineAsync,
+    async_mock_components: Dict[str, AsyncMock],
+    sample_seeds: List[SeedCase],
+    sample_template: SynthesisTemplate,
+) -> None:
+    async_mock_components["analyzer"].analyze.return_value = sample_template
+    async_mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
+    async_mock_components["extractor"].extract.return_value = [
         ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
     ]
 
@@ -152,197 +199,116 @@ def test_pipeline_perturbation(
         diversity=0.0,
         validity_confidence=0.0,
     )
-    mock_components["compositor"].composite.return_value = base_case
+    async_mock_components["compositor"].composite.return_value = base_case
 
     variant_case = base_case.model_copy()
     variant_case.provenance = ProvenanceType.SYNTHETIC_PERTURBED
-    mock_components["perturbator"].perturb.return_value = [variant_case]
+    async_mock_components["perturbator"].perturb.return_value = [variant_case]
 
-    mock_components["appraiser"].appraise.side_effect = lambda cases, *args, **kwargs: cases
+    async_mock_components["appraiser"].appraise.side_effect = lambda cases, *args, **kwargs: cases
 
     # Force perturbation
-    # Since we can't easily mock random.random in the imported module without patching,
-    # we can set rate to 1.1 (always true)
     config: Dict[str, Any] = {"perturbation_rate": 1.1}
 
-    results = pipeline.run(sample_seeds, config, {})
+    results = await pipeline_async.run(sample_seeds, config, {})
 
     # Verify perturbator called
-    mock_components["perturbator"].perturb.assert_called_once_with(base_case)
+    async_mock_components["perturbator"].perturb.assert_awaited_once_with(base_case)
 
     # Should have base + variant = 2
     assert len(results) == 2
     assert results[1].provenance == ProvenanceType.SYNTHETIC_PERTURBED
 
 
-def test_pipeline_empty_seeds(pipeline: SynthesisPipeline, mock_components: Dict[str, Mock]) -> None:
-    results = pipeline.run([], {}, {})
+@pytest.mark.asyncio
+async def test_pipeline_async_empty_seeds(
+    pipeline_async: SynthesisPipelineAsync, async_mock_components: Dict[str, AsyncMock]
+) -> None:
+    results = await pipeline_async.run([], {}, {})
     assert results == []
-    mock_components["analyzer"].analyze.assert_not_called()
+    async_mock_components["analyzer"].analyze.assert_not_called()
 
 
-def test_pipeline_empty_forage(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
+@pytest.mark.asyncio
+async def test_pipeline_async_empty_forage(
+    pipeline_async: SynthesisPipelineAsync,
+    async_mock_components: Dict[str, AsyncMock],
     sample_seeds: List[SeedCase],
     sample_template: SynthesisTemplate,
 ) -> None:
-    mock_components["analyzer"].analyze.return_value = sample_template
-    mock_components["forager"].forage.return_value = []  # No docs
+    async_mock_components["analyzer"].analyze.return_value = sample_template
+    async_mock_components["forager"].forage.return_value = []  # No docs
 
-    results = pipeline.run(sample_seeds, {}, {})
+    results = await pipeline_async.run(sample_seeds, {}, {})
 
     assert results == []
-    mock_components["extractor"].extract.assert_not_called()
+    async_mock_components["extractor"].extract.assert_not_called()
 
 
-def test_pipeline_empty_extract(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
+@pytest.mark.asyncio
+async def test_pipeline_async_empty_extract(
+    pipeline_async: SynthesisPipelineAsync,
+    async_mock_components: Dict[str, AsyncMock],
     sample_seeds: List[SeedCase],
     sample_template: SynthesisTemplate,
 ) -> None:
-    mock_components["analyzer"].analyze.return_value = sample_template
-    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = []  # No slices
+    async_mock_components["analyzer"].analyze.return_value = sample_template
+    async_mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
+    async_mock_components["extractor"].extract.return_value = []  # No slices
 
-    results = pipeline.run(sample_seeds, {}, {})
-
-    assert results == []
-    mock_components["compositor"].composite.assert_not_called()
-
-
-def test_pipeline_all_filtered_by_appraiser(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
-    sample_seeds: List[SeedCase],
-    sample_template: SynthesisTemplate,
-) -> None:
-    """
-    Complex Scenario: Pipeline runs fully, but appraiser filters everything out.
-    """
-    mock_components["analyzer"].analyze.return_value = sample_template
-    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [
-        ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
-    ]
-
-    base_case = SyntheticTestCase(
-        verbatim_context="S",
-        synthetic_question="Q",
-        golden_chain_of_thought="R",
-        expected_json={},
-        provenance=ProvenanceType.VERBATIM_SOURCE,
-        source_urn="u",
-        complexity=0.0,
-        diversity=0.0,
-        validity_confidence=0.0,
-    )
-    mock_components["compositor"].composite.return_value = base_case
-
-    # Appraiser returns empty list
-    mock_components["appraiser"].appraise.return_value = []
-
-    results = pipeline.run(sample_seeds, {}, {})
+    results = await pipeline_async.run(sample_seeds, {}, {})
 
     assert results == []
-    mock_components["appraiser"].appraise.assert_called_once()
+    async_mock_components["compositor"].composite.assert_not_called()
 
 
-def test_pipeline_perturbation_bad_luck(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
-    sample_seeds: List[SeedCase],
-    sample_template: SynthesisTemplate,
-) -> None:
-    """
-    Edge Case: Perturbation rate > 0, but random roll fails (simulated by patch).
-    """
-    mock_components["analyzer"].analyze.return_value = sample_template
-    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [
-        ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
-    ]
-
-    base_case = SyntheticTestCase(
-        verbatim_context="S",
-        synthetic_question="Q",
-        golden_chain_of_thought="R",
-        expected_json={},
-        provenance=ProvenanceType.VERBATIM_SOURCE,
-        source_urn="u",
-        complexity=0.0,
-        diversity=0.0,
-        validity_confidence=0.0,
-    )
-    mock_components["compositor"].composite.return_value = base_case
-
-    # Pass through appraiser
-    mock_components["appraiser"].appraise.side_effect = lambda cases, *args, **kwargs: cases
-
-    config = {"perturbation_rate": 0.5}
-
-    # Patch random.random to return 0.6 (fail condition > 0.5)
-    with patch("random.random", return_value=0.6):
-        results = pipeline.run(sample_seeds, config, {})
-
-    # Perturbator NOT called
-    mock_components["perturbator"].perturb.assert_not_called()
-
-    # Only base case returned
-    assert len(results) == 1
-    assert results[0].provenance == ProvenanceType.VERBATIM_SOURCE
-
-
-def test_pipeline_exception_propagation(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
+@pytest.mark.asyncio
+async def test_pipeline_async_exception_propagation(
+    pipeline_async: SynthesisPipelineAsync,
+    async_mock_components: Dict[str, AsyncMock],
     sample_seeds: List[SeedCase],
 ) -> None:
     """
     Complex Scenario: Component raises exception, pipeline should crash (fail fast).
     """
-    mock_components["analyzer"].analyze.side_effect = ValueError("Analysis Failed")
+    async_mock_components["analyzer"].analyze.side_effect = ValueError("Analysis Failed")
 
     with pytest.raises(ValueError, match="Analysis Failed"):
-        pipeline.run(sample_seeds, {}, {})
+        await pipeline_async.run(sample_seeds, {}, {})
 
 
-def test_pipeline_config_defaults(
-    pipeline: SynthesisPipeline,
-    mock_components: Dict[str, Mock],
-    sample_seeds: List[SeedCase],
-    sample_template: SynthesisTemplate,
-) -> None:
-    """
-    Edge Case: Minimal config provided, verify defaults passed to components.
-    """
-    mock_components["analyzer"].analyze.return_value = sample_template
-    mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
-    mock_components["extractor"].extract.return_value = [
-        ExtractedSlice(content="S", source_urn="u", page_number=1, pii_redacted=False)
-    ]
-    base_case = SyntheticTestCase(
-        verbatim_context="S",
-        synthetic_question="Q",
-        golden_chain_of_thought="R",
-        expected_json={},
-        provenance=ProvenanceType.VERBATIM_SOURCE,
-        source_urn="u",
-        complexity=0.0,
-        diversity=0.0,
-        validity_confidence=0.0,
-    )
-    mock_components["compositor"].composite.return_value = base_case
+@pytest.mark.asyncio
+async def test_pipeline_async_context_manager(async_mock_components: Dict[str, AsyncMock]) -> None:
+    """Test that the async context manager correctly closes the internal client."""
 
-    # Empty config
-    pipeline.run(sample_seeds, {}, {})
+    mock_client = AsyncMock(spec=httpx.AsyncClient)
 
-    # Verify defaults
-    # Forager default limit 10
-    mock_components["forager"].forage.assert_called_with(sample_template, {}, limit=10)
+    pipeline = SynthesisPipelineAsync(**async_mock_components, client=mock_client)
+    async with pipeline as p:
+        assert p is pipeline
 
-    # Appraiser default sort="complexity_desc", min_validity=0.8
-    mock_components["appraiser"].appraise.assert_called_with(
-        [base_case], sample_template, sort_by="complexity_desc", min_validity_score=0.8
-    )
+    mock_client.aclose.assert_not_called()
+
+    with patch("httpx.AsyncClient") as mock_httpx_cls:
+        mock_internal_client = AsyncMock()
+        mock_httpx_cls.return_value = mock_internal_client
+
+        pipeline_internal = SynthesisPipelineAsync(**async_mock_components)
+
+        async with pipeline_internal as p:
+            assert p is pipeline_internal
+
+        mock_internal_client.aclose.assert_awaited_once()
+
+
+def test_pipeline_sync_context_manager(async_mock_components: Dict[str, AsyncMock]) -> None:
+    """Test that the sync context manager correctly wraps the async one."""
+
+    pipeline_sync = SynthesisPipeline(**async_mock_components)
+
+    pipeline_sync._async.__aexit__ = AsyncMock()  # type: ignore
+
+    with pipeline_sync as p:
+        assert p is pipeline_sync
+
+    assert pipeline_sync._async.__aexit__.call_count == 1

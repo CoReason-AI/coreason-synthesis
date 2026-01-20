@@ -32,7 +32,7 @@ class MockMCPClient(MCPClient):
         self.last_user_context: Dict[str, Any] = {}
         self.last_limit = 0
 
-    def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+    async def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
         """Simulates a search by returning pre-loaded documents.
 
         Args:

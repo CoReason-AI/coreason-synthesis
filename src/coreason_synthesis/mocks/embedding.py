@@ -30,7 +30,7 @@ class DummyEmbeddingService(EmbeddingService):
         """
         self.dimension = dimension
 
-    def embed(self, text: str) -> List[float]:
+    async def embed(self, text: str) -> List[float]:
         """Returns a deterministic pseudo-random vector based on text length.
 
         This ensures the same text always gets the same vector in tests.

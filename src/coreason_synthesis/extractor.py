@@ -16,7 +16,9 @@ and ensuring all Personally Identifiable Information (PII) is redacted before us
 """
 
 import re
-from typing import List
+from typing import List, cast
+
+import anyio
 
 from .interfaces import Extractor
 from .models import Document, ExtractedSlice, SynthesisTemplate
@@ -28,7 +30,7 @@ class ExtractorImpl(Extractor):
     Mines text slices using heuristic chunking and sanitizes PII using regex patterns.
     """
 
-    def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
+    async def extract(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
         """Extracts text slices from documents.
 
         Applies PII sanitization and maps back to source.
@@ -40,6 +42,15 @@ class ExtractorImpl(Extractor):
         Returns:
             List of extracted text slices (verbatim).
         """
+        # Extraction is primarily CPU bound (regex + string splitting).
+        # We offload it to a thread to avoid blocking the event loop.
+        return cast(
+            List[ExtractedSlice],
+            await anyio.to_thread.run_sync(self._extract_sync, documents, template),
+        )
+
+    def _extract_sync(self, documents: List[Document], template: SynthesisTemplate) -> List[ExtractedSlice]:
+        """Synchronous implementation of extraction logic."""
         extracted_slices: List[ExtractedSlice] = []
 
         for doc in documents:

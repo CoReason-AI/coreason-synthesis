@@ -16,8 +16,9 @@ from the MCP (Model Context Protocol) knowledge base, ensuring diversity
 via Maximal Marginal Relevance (MMR).
 """
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
+import anyio
 import numpy as np
 
 from .interfaces import EmbeddingService, Forager, MCPClient
@@ -41,7 +42,9 @@ class ForagerImpl(Forager):
         self.mcp_client = mcp_client
         self.embedder = embedder
 
-    def forage(self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10) -> List[Document]:
+    async def forage(
+        self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10
+    ) -> List[Document]:
         """Retrieves documents based on the synthesis template's centroid.
 
         Applies Maximal Marginal Relevance (MMR) to ensure diversity.
@@ -63,17 +66,18 @@ class ForagerImpl(Forager):
         # We fetch more than 'limit' to allow for filtering/re-ranking
         # Fetching 5x the limit is a common heuristic
         fetch_limit = limit * 5
-        candidates = self.mcp_client.search(template.embedding_centroid, user_context, fetch_limit)
+        candidates = await self.mcp_client.search(template.embedding_centroid, user_context, fetch_limit)
 
         if not candidates:
             return []
 
         # 2. Apply MMR for Diversity
-        selected_docs = self._apply_mmr(template.embedding_centroid, candidates, limit)
+        # MMR calculation is CPU intensive, so we offload it to a thread
+        selected_docs = await self._apply_mmr(template.embedding_centroid, candidates, limit)
 
         return selected_docs
 
-    def _apply_mmr(
+    async def _apply_mmr(
         self, query_vector: List[float], candidates: List[Document], limit: int, lambda_param: float = 0.5
     ) -> List[Document]:
         """Applies Maximal Marginal Relevance (MMR) ranking.
@@ -94,17 +98,41 @@ class ForagerImpl(Forager):
         if not candidates:
             return []
 
+        # Pre-calculate embeddings for all candidates
+        # This might involve I/O if the embedder calls an external service
+        candidate_embeddings = []
+        for doc in candidates:
+            emb = np.array(await self.embedder.embed(doc.content))
+            candidate_embeddings.append(emb)
+
+        # The actual MMR calculation is purely CPU bound.
+        # We can run it in a thread if the number of candidates is large.
+        # For now, let's wrap the numpy heavy part.
+
+        return cast(
+            List[Document],
+            await anyio.to_thread.run_sync(
+                self._calculate_mmr_sync,
+                query_vector,
+                candidates,
+                candidate_embeddings,
+                limit,
+                lambda_param,
+            ),
+        )
+
+    def _calculate_mmr_sync(
+        self,
+        query_vector: List[float],
+        candidates: List[Document],
+        candidate_embeddings: List[np.ndarray],
+        limit: int,
+        lambda_param: float,
+    ) -> List[Document]:
+        """Synchronous part of MMR calculation."""
         # Convert query to numpy array
         query_np = np.array(query_vector)
         query_norm = np.linalg.norm(query_np)
-
-        # Pre-calculate embeddings for all candidates
-        # Note: In a production system, MCP might return embeddings to avoid re-embedding.
-        # Here we use the embedder service.
-        candidate_embeddings = []
-        for doc in candidates:
-            emb = np.array(self.embedder.embed(doc.content))
-            candidate_embeddings.append(emb)
 
         # Calculate Similarity(Candidate, Query)
         # Cosine similarity: (A . B) / (|A| * |B|)
