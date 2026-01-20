@@ -8,6 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+HTTP utility module.
+
+Provides helper functions for creating robust HTTP sessions with retry logic,
+used by various clients in the package.
+"""
+
 from typing import Optional
 
 import requests
@@ -19,8 +26,7 @@ def create_retry_session(
     api_key: Optional[str] = None,
     max_retries: int = 3,
 ) -> requests.Session:
-    """
-    Creates a requests.Session with retry logic and optional authentication.
+    """Creates a requests.Session with retry logic and optional authentication.
 
     Args:
         api_key: Optional Bearer token for Authorization header.

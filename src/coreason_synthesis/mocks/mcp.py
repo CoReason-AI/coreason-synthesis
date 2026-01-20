@@ -8,6 +8,10 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Mock MCP client for testing.
+"""
+
 from typing import Any, Dict, List, Optional
 
 from coreason_synthesis.interfaces import MCPClient
@@ -18,12 +22,27 @@ class MockMCPClient(MCPClient):
     """Mock MCP Client for testing."""
 
     def __init__(self, documents: Optional[List[Document]] = None):
+        """Initializes the mock MCP client.
+
+        Args:
+            documents: List of pre-seeded documents to return in search.
+        """
         self.documents = documents or []
         self.last_query_vector: List[float] = []
         self.last_user_context: Dict[str, Any] = {}
         self.last_limit = 0
 
     def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+        """Simulates a search by returning pre-loaded documents.
+
+        Args:
+            query_vector: The query vector (stored for verification).
+            user_context: User context (stored for verification).
+            limit: Limit (stored and applied).
+
+        Returns:
+            A slice of the pre-loaded documents.
+        """
         self.last_query_vector = query_vector
         self.last_user_context = user_context
         self.last_limit = limit

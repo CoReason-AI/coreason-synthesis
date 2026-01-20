@@ -8,6 +8,10 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
+"""
+Mock embedding service for testing.
+"""
+
 from typing import List
 
 import numpy as np
@@ -19,12 +23,23 @@ class DummyEmbeddingService(EmbeddingService):
     """Deterministic mock embedding service for testing."""
 
     def __init__(self, dimension: int = 1536):
+        """Initializes the dummy embedding service.
+
+        Args:
+            dimension: The dimensionality of the mock vectors.
+        """
         self.dimension = dimension
 
     def embed(self, text: str) -> List[float]:
-        """
-        Returns a deterministic pseudo-random vector based on text length.
+        """Returns a deterministic pseudo-random vector based on text length.
+
         This ensures the same text always gets the same vector in tests.
+
+        Args:
+            text: The input text.
+
+        Returns:
+            A list of floats representing the mock embedding.
         """
         # Use a seed based on text content for determinism
         seed = sum(ord(c) for c in text)
