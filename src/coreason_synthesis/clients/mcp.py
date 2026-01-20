@@ -17,11 +17,10 @@ Context Protocol (MCP) service to search and retrieve documents.
 
 from typing import Any, Dict, List, Optional
 
-import requests
+import httpx
 
 from coreason_synthesis.interfaces import MCPClient
 from coreason_synthesis.models import Document
-from coreason_synthesis.utils.http import create_retry_session
 
 
 class HttpMCPClient(MCPClient):
@@ -30,7 +29,14 @@ class HttpMCPClient(MCPClient):
     Connects to an MCP-compliant REST API to perform vector-based searches.
     """
 
-    def __init__(self, base_url: str, api_key: Optional[str] = None, timeout: int = 30, max_retries: int = 3):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: Optional[str] = None,
+        timeout: int = 30,
+        max_retries: int = 3,
+        client: Optional[httpx.AsyncClient] = None,
+    ) -> None:
         """Initializes the HttpMCPClient.
 
         Args:
@@ -38,12 +44,27 @@ class HttpMCPClient(MCPClient):
             api_key: Optional API key for authentication.
             timeout: Request timeout in seconds.
             max_retries: Maximum number of retries for failed requests.
+            client: Optional httpx.AsyncClient to use for requests.
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self.session = create_retry_session(api_key=api_key, max_retries=max_retries)
+        self.max_retries = max_retries
 
-    def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        # If a client is provided, we use it. Otherwise, we create one internally.
+        # Note: In a proper async context, we should manage the lifecycle of the internal client.
+        self._internal_client = client is None
+        self._client = client or httpx.AsyncClient(headers=headers, timeout=timeout)
+
+    async def close(self) -> None:
+        """Closes the underlying HTTP client if it was created internally."""
+        if self._internal_client:
+            await self._client.aclose()
+
+    async def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
         """Searches the MCP for relevant documents.
 
         Args:
@@ -55,12 +76,12 @@ class HttpMCPClient(MCPClient):
             List of retrieved Document objects.
 
         Raises:
-            requests.RequestException: If the API request fails.
+            httpx.HTTPError: If the API request fails.
         """
         payload = {"vector": query_vector, "context": user_context, "limit": limit}
 
         try:
-            response = self.session.post(f"{self.base_url}/search", json=payload, timeout=self.timeout)
+            response = await self._client.post(f"{self.base_url}/search", json=payload)
             response.raise_for_status()
 
             data = response.json()
@@ -70,6 +91,6 @@ class HttpMCPClient(MCPClient):
                 documents.append(Document(**item))
             return documents
 
-        except requests.RequestException as e:
+        except httpx.HTTPError as e:
             # Propagate exception or handle it. For now, propagate so caller knows it failed.
             raise e

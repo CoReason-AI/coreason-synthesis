@@ -37,8 +37,8 @@ class Diff(BaseModel):
     """
 
     description: str = Field(..., description="Description of the change")
-    original: Optional[str] = Field(None, description="The original text segment")
-    new: Optional[str] = Field(None, description="The new text segment")
+    original: Optional[str] = Field(default=None, description="The original text segment")
+    new: Optional[str] = Field(default=None, description="The new text segment")
 
 
 class SeedCase(BaseModel):
@@ -122,9 +122,7 @@ class SyntheticTestCase(BaseModel):
     # Provenance
     provenance: ProvenanceType = Field(..., description="The origin type of the test case")
     source_urn: str = Field(..., description="URN of the source document")
-    modifications: List[Union[Diff, str]] = Field(
-        default_factory=list, description="List of modifications applied (if any)"
-    )
+    modifications: List[Diff] = Field(default_factory=list, description="List of modifications applied (if any)")
 
     # Metrics
     complexity: float = Field(..., ge=0, le=10, description="Estimated logical steps required (0-10)")

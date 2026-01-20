@@ -17,7 +17,9 @@ by applying deterministic mutations to the generated test cases.
 
 import random
 import re
-from typing import List, Optional
+from typing import List, Optional, cast
+
+import anyio
 
 from .interfaces import Perturbator
 from .models import Diff, ProvenanceType, SyntheticTestCase
@@ -39,7 +41,7 @@ class PerturbatorImpl(Perturbator):
         "[System Error: Data Corrupted]",
     ]
 
-    def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
+    async def perturb(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
         """Applies perturbations to a test case to create variants.
 
         Generates independent variants for each strategy that successfully modifies the text.
@@ -50,6 +52,12 @@ class PerturbatorImpl(Perturbator):
         Returns:
             A list containing the generated perturbed variants.
         """
+        # Perturbation is CPU bound (regex).
+        # We offload it to a thread.
+        return cast(List[SyntheticTestCase], await anyio.to_thread.run_sync(self._perturb_sync, case))
+
+    def _perturb_sync(self, case: SyntheticTestCase) -> List[SyntheticTestCase]:
+        """Synchronous implementation of perturbation logic."""
         variants: List[SyntheticTestCase] = []
 
         # Strategy 1: Numeric Swap (Value Swap)
