@@ -2,6 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Dict, List
 
+from coreason_identity.models import UserContext
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -22,7 +23,7 @@ from .pipeline import SynthesisPipelineAsync
 class SynthesisRunRequest(BaseModel):
     seeds: List[SeedCase]
     config: Dict[str, Any]
-    user_context: Dict[str, Any]
+    user_context: UserContext
 
 
 @asynccontextmanager

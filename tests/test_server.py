@@ -49,7 +49,7 @@ def test_run_synthesis() -> None:
             }
         ],
         "config": {"target_count": 1, "perturbation_rate": 0.0},
-        "user_context": {"user": "tester"},
+        "user_context": {"sub": "tester", "email": "tester@example.com"},
     }
 
     with TestClient(app) as client:

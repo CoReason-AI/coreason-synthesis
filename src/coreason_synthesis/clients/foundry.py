@@ -19,6 +19,7 @@ from typing import List, Optional
 
 import requests
 
+from coreason_identity.models import UserContext
 from coreason_synthesis.models import SyntheticTestCase
 from coreason_synthesis.utils.http import create_retry_session
 
@@ -43,11 +44,12 @@ class FoundryClient:
         self.timeout = timeout
         self.session = create_retry_session(api_key=api_key, max_retries=max_retries)
 
-    def push_cases(self, cases: List[SyntheticTestCase]) -> int:
+    def push_cases(self, cases: List[SyntheticTestCase], user_context: Optional[UserContext] = None) -> int:
         """Pushes a list of synthetic test cases to the Foundry API.
 
         Args:
             cases: List of SyntheticTestCase objects to push.
+            user_context: Optional user context for identity propagation.
 
         Returns:
             The number of cases successfully pushed.
@@ -62,10 +64,19 @@ class FoundryClient:
         # model_dump(mode='json') handles UUIDs and Enums correctly for JSON serialization
         payload = [case.model_dump(mode="json") for case in cases]
 
+        # Prepare headers for identity propagation
+        headers = {}
+        if user_context:
+            # Safely access downstream_token as it might not be in all UserContext versions
+            token = getattr(user_context, "downstream_token", None)
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            headers["X-CoReason-On-Behalf-Of"] = user_context.sub
+
         try:
             # Endpoint: /api/v1/test-cases
             url = f"{self.base_url}/api/v1/test-cases"
-            response = self.session.post(url, json=payload, timeout=self.timeout)
+            response = self.session.post(url, json=payload, headers=headers, timeout=self.timeout)
             response.raise_for_status()
 
             # Assuming API returns a JSON with count or we just trust successful 2xx implies all were received.

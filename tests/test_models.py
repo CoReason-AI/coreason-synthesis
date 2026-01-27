@@ -89,3 +89,36 @@ def test_synthetic_test_case_invalid_modification_type() -> None:
             diversity=0.5,
             validity_confidence=0.0,
         )
+
+def test_synthetic_test_case_ownership() -> None:
+    case = SyntheticTestCase(
+        verbatim_context="ctx",
+        synthetic_question="q",
+        golden_chain_of_thought="r",
+        expected_json={"a": 1},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn:1",
+        modifications=[],
+        complexity=1.0,
+        diversity=0.5,
+        validity_confidence=0.9,
+        created_by="user123",
+        tenant_id="tenant456"
+    )
+    assert case.created_by == "user123"
+    assert case.tenant_id == "tenant456"
+
+    # Test defaults
+    case_default = SyntheticTestCase(
+        verbatim_context="ctx",
+        synthetic_question="q",
+        golden_chain_of_thought="r",
+        expected_json={"a": 1},
+        provenance=ProvenanceType.VERBATIM_SOURCE,
+        source_urn="urn:1",
+        complexity=1.0,
+        diversity=0.5,
+        validity_confidence=0.9,
+    )
+    assert case_default.created_by is None
+    assert case_default.tenant_id is None

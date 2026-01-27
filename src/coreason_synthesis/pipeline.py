@@ -22,6 +22,8 @@ from typing import Any, Dict, List, Optional, Self, cast
 import anyio
 import httpx
 
+from coreason_identity.models import UserContext
+
 from .interfaces import (
     Appraiser,
     Compositor,
@@ -84,7 +86,7 @@ class SynthesisPipelineAsync:
         # Potentially close other resources if components exposed a close method
 
     async def run(
-        self, seeds: List[SeedCase], config: Dict[str, Any], user_context: Dict[str, Any]
+        self, seeds: List[SeedCase], config: Dict[str, Any], user_context: UserContext
     ) -> List[SyntheticTestCase]:
         """Executes the full synthesis pipeline.
 
@@ -132,11 +134,17 @@ class SynthesisPipelineAsync:
         for context_slice in slices:
             # Generate the base case (Verbatim)
             base_case = await self.compositor.composite(context_slice, template)
+            # Inject Identity
+            base_case.created_by = user_context.sub
+            base_case.tenant_id = user_context.project_context
             generated_cases.append(base_case)
 
             # Apply perturbation if lucky
             if perturbation_rate > 0 and random.random() < perturbation_rate:
                 variants = await self.perturbator.perturb(base_case)
+                for v in variants:
+                    v.created_by = user_context.sub
+                    v.tenant_id = user_context.project_context
                 generated_cases.extend(variants)
 
         if not generated_cases:
@@ -193,7 +201,7 @@ class SynthesisPipeline:
         anyio.run(self._async.__aexit__, exc_type, exc_val, exc_tb)
 
     def run(
-        self, seeds: List[SeedCase], config: Dict[str, Any], user_context: Dict[str, Any]
+        self, seeds: List[SeedCase], config: Dict[str, Any], user_context: UserContext
     ) -> List[SyntheticTestCase]:
         """Executes the full synthesis pipeline synchronously.
 

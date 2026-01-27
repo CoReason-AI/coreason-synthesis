@@ -14,6 +14,7 @@ import pytest
 import requests
 from requests import RequestException
 
+from coreason_identity.models import UserContext
 from coreason_synthesis.clients.foundry import FoundryClient
 from coreason_synthesis.models import ProvenanceType, SyntheticTestCase
 
@@ -124,3 +125,28 @@ class TestFoundryClient:
         payload = kwargs["json"][0]
         assert payload["verbatim_context"] == "Unicode content: 💊 ⚡ テスト"
         assert payload["synthetic_question"] == "Question with emoji 🚀?"
+
+    @patch("requests.Session.post")
+    def test_push_cases_with_identity(
+        self, mock_post: MagicMock, client: FoundryClient, sample_case: SyntheticTestCase
+    ) -> None:
+        """Test push with identity propagation."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Use MagicMock to simulate UserContext with downstream_token
+        # as the current installed version of coreason-identity might verify fields
+        user_context = MagicMock(spec=UserContext)
+        user_context.sub = "user123"
+        user_context.downstream_token = "token456"
+
+        count = client.push_cases([sample_case], user_context=user_context)
+
+        assert count == 1
+
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        headers = kwargs["headers"]
+        assert headers["Authorization"] == "Bearer token456"
+        assert headers["X-CoReason-On-Behalf-Of"] == "user123"

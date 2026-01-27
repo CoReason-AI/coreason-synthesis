@@ -65,6 +65,8 @@ class SyntheticJob(BaseModel):
     id: UUID = Field(..., description="Unique identifier for the job")
     seed_ids: List[UUID] = Field(..., description="List of seed case IDs used for this job")
     config: Dict[str, Any] = Field(..., description="Configuration for the job (e.g., perturbation_rate, target_count)")
+    created_by: Optional[str] = Field(default=None, description="User ID who created the job")
+    tenant_id: Optional[str] = Field(default=None, description="Tenant ID of the user")
 
 
 class Document(BaseModel):
@@ -118,6 +120,10 @@ class SyntheticTestCase(BaseModel):
     synthetic_question: str = Field(..., description="The generated question")
     golden_chain_of_thought: str = Field(..., description="The teacher's reasoning logic")
     expected_json: Dict[str, Any] = Field(..., description="The expected JSON output")
+
+    # Ownership
+    created_by: Optional[str] = Field(default=None, description="User ID who created the test case")
+    tenant_id: Optional[str] = Field(default=None, description="Tenant ID of the user")
 
     # Provenance
     provenance: ProvenanceType = Field(..., description="The origin type of the test case")
