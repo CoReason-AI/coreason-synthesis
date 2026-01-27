@@ -73,17 +73,12 @@ class FoundryClient:
                 headers["Authorization"] = f"Bearer {token}"
             headers["X-CoReason-On-Behalf-Of"] = user_context.sub
 
-        try:
-            # Endpoint: /api/v1/test-cases
-            url = f"{self.base_url}/api/v1/test-cases"
-            response = self.session.post(url, json=payload, headers=headers, timeout=self.timeout)
-            response.raise_for_status()
+        # Endpoint: /api/v1/test-cases
+        url = f"{self.base_url}/api/v1/test-cases"
+        response = self.session.post(url, json=payload, headers=headers, timeout=self.timeout)
+        response.raise_for_status()
 
-            # Assuming API returns a JSON with count or we just trust successful 2xx implies all were received.
-            # If the API returns detailed status, we might parse it.
-            # For now, we assume standard behavior: 200 OK means batch accepted.
-            return len(cases)
-
-        except requests.RequestException as e:
-            # Propagate exception
-            raise e
+        # Assuming API returns a JSON with count or we just trust successful 2xx implies all were received.
+        # If the API returns detailed status, we might parse it.
+        # For now, we assume standard behavior: 200 OK means batch accepted.
+        return len(cases)

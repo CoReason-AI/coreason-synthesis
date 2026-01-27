@@ -150,3 +150,52 @@ class TestFoundryClient:
         headers = kwargs["headers"]
         assert headers["Authorization"] == "Bearer token456"
         assert headers["X-CoReason-On-Behalf-Of"] == "user123"
+
+    @patch("requests.Session.post")
+    def test_push_connection_error(
+        self, mock_post: MagicMock, client: FoundryClient, sample_case: SyntheticTestCase
+    ) -> None:
+        """Test push with connection error."""
+        mock_post.side_effect = requests.ConnectionError("Connection Refused")
+
+        with pytest.raises(requests.RequestException):
+            client.push_cases([sample_case])
+
+    @patch("requests.Session.post")
+    def test_push_cases_with_identity_no_token(
+        self, mock_post: MagicMock, client: FoundryClient, sample_case: SyntheticTestCase
+    ) -> None:
+        """Test push with identity propagation but no downstream token."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_post.return_value = mock_response
+
+        # Use MagicMock to simulate UserContext without downstream_token
+        user_context = MagicMock(spec=UserContext)
+        user_context.sub = "user123"
+        # Simulate missing attribute or None value
+        del user_context.downstream_token
+
+        # getattr(mock, 'attr', default) returns mock object if not configured?
+        # MagicMock usually creates attributes on access.
+        # We need to ensure getattr returns None.
+        # user_context.downstream_token = None works too if the attribute exists but is None.
+        # But getattr(obj, name, None) is used.
+        # If I want getattr to fail to find it, I need to ensure it's not in the mock spec or explicitly deleted.
+        # But since I provided spec=UserContext, and UserContext doesn't have downstream_token field in definition
+        # (it's dynamic or extra), let's just set it to None explicitly or ensure access raises AttributeError so default is used.
+        # Actually, in the code: token = getattr(user_context, "downstream_token", None).
+        # If I use real UserContext from coreason-identity (which I can import now),
+        # it doesn't have the field. So getattr returns None.
+
+        real_user_context = UserContext(sub="user123", email="e@e.com")
+
+        count = client.push_cases([sample_case], user_context=real_user_context)
+
+        assert count == 1
+
+        mock_post.assert_called_once()
+        _, kwargs = mock_post.call_args
+        headers = kwargs["headers"]
+        assert "Authorization" not in headers
+        assert headers["X-CoReason-On-Behalf-Of"] == "user123"

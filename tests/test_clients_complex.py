@@ -14,6 +14,7 @@ import httpx
 import pytest
 import respx
 
+from coreason_identity.models import UserContext
 from coreason_synthesis.clients.mcp import HttpMCPClient
 
 
@@ -28,8 +29,9 @@ class TestHttpMCPClientComplex:
         """Server returns 200 OK but body is not JSON."""
         respx.post("http://test.mcp/search").mock(return_value=httpx.Response(200, text="Not JSON"))
 
+        user_context = UserContext(sub="u", email="e@e.com")
         with pytest.raises(json.JSONDecodeError):
-            await client.search([0.1], {}, 10)
+            await client.search([0.1], user_context, 10)
 
     @respx.mock  # type: ignore[misc]
     @pytest.mark.asyncio
@@ -39,7 +41,8 @@ class TestHttpMCPClientComplex:
         invalid_docs = {"results": [{"source_urn": "u1"}]}
         respx.post("http://test.mcp/search").mock(return_value=httpx.Response(200, json=invalid_docs))
 
+        user_context = UserContext(sub="u", email="e@e.com")
         # Pydantic validation error should be raised
         with pytest.raises(Exception) as exc:  # Catching broad exception to include ValidationError
-            await client.search([0.1], {}, 10)
+            await client.search([0.1], user_context, 10)
         assert "validation error" in str(exc.value).lower()
