@@ -12,9 +12,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from coreason_identity.models import UserContext
 from requests import RequestException
 
-from coreason_identity.models import UserContext
 from coreason_synthesis.clients.foundry import FoundryClient
 from coreason_synthesis.models import ProvenanceType, SyntheticTestCase
 

@@ -16,11 +16,10 @@ from the MCP (Model Context Protocol) knowledge base, ensuring diversity
 via Maximal Marginal Relevance (MMR).
 """
 
-from typing import Any, Dict, List, cast
+from typing import List, cast
 
 import anyio
 import numpy as np
-
 from coreason_identity.models import UserContext
 
 from .interfaces import EmbeddingService, Forager, MCPClient
@@ -44,9 +43,7 @@ class ForagerImpl(Forager):
         self.mcp_client = mcp_client
         self.embedder = embedder
 
-    async def forage(
-        self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10
-    ) -> List[Document]:
+    async def forage(self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10) -> List[Document]:
         """Retrieves documents based on the synthesis template's centroid.
 
         Applies Maximal Marginal Relevance (MMR) to ensure diversity.

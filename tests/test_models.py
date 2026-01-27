@@ -90,6 +90,7 @@ def test_synthetic_test_case_invalid_modification_type() -> None:
             validity_confidence=0.0,
         )
 
+
 def test_synthetic_test_case_ownership() -> None:
     case = SyntheticTestCase(
         verbatim_context="ctx",
@@ -103,7 +104,7 @@ def test_synthetic_test_case_ownership() -> None:
         diversity=0.5,
         validity_confidence=0.9,
         created_by="user123",
-        tenant_id="tenant456"
+        tenant_id="tenant456",
     )
     assert case.created_by == "user123"
     assert case.tenant_id == "tenant456"

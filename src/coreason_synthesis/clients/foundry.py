@@ -18,8 +18,8 @@ Foundry service, primarily for pushing generated test cases to the staging area.
 from typing import List, Optional
 
 import requests
-
 from coreason_identity.models import UserContext
+
 from coreason_synthesis.models import SyntheticTestCase
 from coreason_synthesis.utils.http import create_retry_session
 

@@ -14,8 +14,8 @@ from uuid import uuid4
 
 import httpx
 import pytest
-
 from coreason_identity.models import UserContext
+
 from coreason_synthesis.interfaces import (
     Appraiser,
     Compositor,
@@ -294,6 +294,7 @@ async def test_pipeline_async_exception_propagation(
 
     with pytest.raises(ValueError, match="Analysis Failed"):
         await pipeline_async.run(sample_seeds, {}, user_context)
+
 
 @pytest.mark.asyncio
 async def test_pipeline_async_context_manager(async_mock_components: Dict[str, AsyncMock]) -> None:

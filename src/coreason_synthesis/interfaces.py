@@ -16,7 +16,7 @@ Pattern-Forage-Fabricate-Rank architecture described in the PRD.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import List, Optional, Type, TypeVar
 
 from coreason_identity.models import UserContext
 from pydantic import BaseModel
@@ -141,9 +141,7 @@ class Forager(ABC):
     """
 
     @abstractmethod
-    async def forage(
-        self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10
-    ) -> List[Document]:
+    async def forage(self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10) -> List[Document]:
         """Retrieves documents based on the synthesis template's centroid.
 
         Args:
