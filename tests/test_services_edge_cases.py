@@ -11,9 +11,9 @@
 import httpx
 import pytest
 import respx
+from coreason_identity.models import UserContext
 from pydantic import ValidationError
 
-from coreason_identity.models import UserContext
 from coreason_synthesis.clients.mcp import HttpMCPClient
 
 

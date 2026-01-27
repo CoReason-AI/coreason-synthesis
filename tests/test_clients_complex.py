@@ -13,8 +13,8 @@ import json
 import httpx
 import pytest
 import respx
-
 from coreason_identity.models import UserContext
+
 from coreason_synthesis.clients.mcp import HttpMCPClient
 
 

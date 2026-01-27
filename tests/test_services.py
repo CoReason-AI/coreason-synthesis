@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 import respx
-
 from coreason_identity.models import UserContext
+
 from coreason_synthesis.clients.mcp import HttpMCPClient
 from coreason_synthesis.models import Document
 

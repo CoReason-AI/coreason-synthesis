@@ -183,7 +183,7 @@ class TestFoundryClient:
         # But getattr(obj, name, None) is used.
         # If I want getattr to fail to find it, I need to ensure it's not in the mock spec or explicitly deleted.
         # But since I provided spec=UserContext, and UserContext doesn't have downstream_token field in definition
-        # (it's dynamic or extra), let's just set it to None explicitly or ensure access raises AttributeError so default is used.
+        # (it's dynamic or extra), let's just set it to None explicitly or ensure access raises AttributeError.
         # Actually, in the code: token = getattr(user_context, "downstream_token", None).
         # If I use real UserContext from coreason-identity (which I can import now),
         # it doesn't have the field. So getattr returns None.
