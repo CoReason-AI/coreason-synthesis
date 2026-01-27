@@ -16,7 +16,7 @@ pipeline = SynthesisPipeline(...)
 results = pipeline.run(seeds=[...], config={...}, user_context={...})
 ```
 
-See the [README](../README.md) for a complete code example.
+See the [Home](index.md) page for a complete code example.
 
 ## Server Mode (Microservice)
 
