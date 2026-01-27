@@ -1,30 +1,40 @@
-import pytest
-from fastapi.testclient import TestClient
-from coreason_synthesis.server import app
-import respx
-from httpx import Response
-import os
 import uuid
 
-def test_health():
+import respx
+from fastapi.testclient import TestClient
+from httpx import Response
+
+from coreason_synthesis.server import app
+
+
+def test_health() -> None:
     with TestClient(app) as client:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "active", "components": "ready"}
 
-@respx.mock
-def test_run_synthesis():
+
+@respx.mock  # type: ignore[misc]
+def test_run_synthesis() -> None:
     # Mock the MCP search endpoint
     # Default MCP_BASE_URL in server.py is http://localhost:8080
-    respx.post("http://localhost:8080/search").mock(return_value=Response(200, json={
-        "results": [
-            {
-                "content": "This is a retrieved document content about medical condition. It has enough length to be considered valid chunk.",
-                "source_urn": "urn:doc:123",
-                "metadata": {"page_number": 1}
-            }
-        ]
-    }))
+    respx.post("http://localhost:8080/search").mock(
+        return_value=Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "content": (
+                            "This is a retrieved document content about medical condition. "
+                            "It has enough length to be considered valid chunk."
+                        ),
+                        "source_urn": "urn:doc:123",
+                        "metadata": {"page_number": 1},
+                    }
+                ]
+            },
+        )
+    )
 
     payload = {
         "seeds": [
@@ -35,14 +45,11 @@ def test_run_synthesis():
                 "expected_output": "Seed output",
                 "provenance": "MANUAL_SEED",
                 "modifications": [],
-                "source_urn": "urn:seed:1"
+                "source_urn": "urn:seed:1",
             }
         ],
-        "config": {
-            "target_count": 1,
-            "perturbation_rate": 0.0
-        },
-        "user_context": {"user": "tester"}
+        "config": {"target_count": 1, "perturbation_rate": 0.0},
+        "user_context": {"user": "tester"},
     }
 
     with TestClient(app) as client:

@@ -1,21 +1,22 @@
-from contextlib import asynccontextmanager
 import os
-from typing import Any, Dict, List
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict, List
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from .pipeline import SynthesisPipelineAsync
-from .models import SeedCase, SyntheticTestCase
-from .clients.mcp import HttpMCPClient
-from .mocks.teacher import MockTeacher
-from .mocks.embedding import DummyEmbeddingService
 from .analyzer import PatternAnalyzerImpl
-from .forager import ForagerImpl
-from .extractor import ExtractorImpl
-from .compositor import CompositorImpl
-from .perturbator import PerturbatorImpl
 from .appraiser import AppraiserImpl
+from .clients.mcp import HttpMCPClient
+from .compositor import CompositorImpl
+from .extractor import ExtractorImpl
+from .forager import ForagerImpl
+from .mocks.embedding import DummyEmbeddingService
+from .mocks.teacher import MockTeacher
+from .models import SeedCase, SyntheticTestCase
+from .perturbator import PerturbatorImpl
+from .pipeline import SynthesisPipelineAsync
+
 
 # Define the request model
 class SynthesisRunRequest(BaseModel):
@@ -25,7 +26,7 @@ class SynthesisRunRequest(BaseModel):
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Lifespan context manager to initialize the synthesis pipeline and its components.
     ensures that resources (like HTTP clients) are properly closed on shutdown.
@@ -64,7 +65,7 @@ async def lifespan(app: FastAPI):
         extractor=extractor,
         compositor=compositor,
         perturbator=perturbator,
-        appraiser=appraiser
+        appraiser=appraiser,
     )
 
     async with pipeline:
@@ -76,10 +77,10 @@ async def lifespan(app: FastAPI):
     await mcp_client.close()
 
 
-app = FastAPI(lifespan=lifespan)
+app: FastAPI = FastAPI(lifespan=lifespan)
 
 
-@app.post("/synthesis/run", response_model=List[SyntheticTestCase])
+@app.post("/synthesis/run", response_model=List[SyntheticTestCase])  # type: ignore[misc]
 async def run_synthesis(request: SynthesisRunRequest) -> List[SyntheticTestCase]:
     """
     Executes the synthesis pipeline.
@@ -88,16 +89,12 @@ async def run_synthesis(request: SynthesisRunRequest) -> List[SyntheticTestCase]
     """
     pipeline: SynthesisPipelineAsync = app.state.pipeline
 
-    results = await pipeline.run(
-        seeds=request.seeds,
-        config=request.config,
-        user_context=request.user_context
-    )
+    results = await pipeline.run(seeds=request.seeds, config=request.config, user_context=request.user_context)
 
     return results
 
 
-@app.get("/health")
+@app.get("/health")  # type: ignore[misc]
 async def health_check() -> Dict[str, str]:
     """
     Health check endpoint.
