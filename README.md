@@ -38,29 +38,9 @@ For detailed requirements and specifications, see [docs/product_requirements.md]
 pip install coreason-synthesis
 ```
 
-## Microservice Architecture (Server Mode)
+## Usage
 
-As of **v0.2.0**, `coreason-synthesis` includes a production-ready FastAPI server. This allows it to act as the "Test Data Factory" microservice within the CoReason platform.
-
-To run the server:
-
-```bash
-# Using Uvicorn directly
-uvicorn coreason_synthesis.server:app --host 0.0.0.0 --port 8000
-```
-
-Or via Docker:
-
-```bash
-docker build -t coreason-synthesis .
-docker run -p 8000:8000 -e MCP_BASE_URL="http://mcp-service:8080" coreason-synthesis
-```
-
-See [docs/usage.md](docs/usage.md) for detailed API documentation and configuration.
-
-## Library Usage
-
-Here is a concise example of how to initialize and use the library programmatically (using built-in mocks for demonstration):
+Here is a concise example of how to initialize and use the library (using built-in mocks for demonstration):
 
 ```python
 import uuid
