@@ -8,13 +8,13 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
-from typing import Any, List, Optional, Type, TypeVar
+from typing import List, Optional, Type, TypeVar
 from uuid import uuid4
 
 import pytest
+from coreason_identity.models import UserContext
 from pydantic import BaseModel
 
-from coreason_identity.models import UserContext
 from coreason_synthesis.interfaces import (
     Appraiser,
     Compositor,

@@ -15,11 +15,11 @@ This module provides the client interface for interacting with the Model
 Context Protocol (MCP) service to search and retrieve documents.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import httpx
-
 from coreason_identity.models import UserContext
+
 from coreason_synthesis.interfaces import MCPClient
 from coreason_synthesis.models import Document
 

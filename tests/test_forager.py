@@ -11,8 +11,8 @@
 from unittest.mock import AsyncMock
 
 import pytest
-
 from coreason_identity.models import UserContext
+
 from coreason_synthesis.forager import ForagerImpl
 from coreason_synthesis.interfaces import EmbeddingService, MCPClient
 from coreason_synthesis.models import Document, SynthesisTemplate
