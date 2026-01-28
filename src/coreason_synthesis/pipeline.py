@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Self, cast
 
 import anyio
 import httpx
+from coreason_identity.models import UserContext
 
 from .interfaces import (
     Appraiser,
@@ -84,7 +85,7 @@ class SynthesisPipelineAsync:
         # Potentially close other resources if components exposed a close method
 
     async def run(
-        self, seeds: List[SeedCase], config: Dict[str, Any], user_context: Dict[str, Any]
+        self, seeds: List[SeedCase], config: Dict[str, Any], user_context: UserContext
     ) -> List[SyntheticTestCase]:
         """Executes the full synthesis pipeline.
 
@@ -192,9 +193,7 @@ class SynthesisPipeline:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         anyio.run(self._async.__aexit__, exc_type, exc_val, exc_tb)
 
-    def run(
-        self, seeds: List[SeedCase], config: Dict[str, Any], user_context: Dict[str, Any]
-    ) -> List[SyntheticTestCase]:
+    def run(self, seeds: List[SeedCase], config: Dict[str, Any], user_context: UserContext) -> List[SyntheticTestCase]:
         """Executes the full synthesis pipeline synchronously.
 
         Delegates to SynthesisPipelineAsync.run via anyio.run.
