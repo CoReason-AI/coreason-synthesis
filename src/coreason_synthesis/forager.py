@@ -21,6 +21,8 @@ from typing import Any, Dict, List, cast
 import anyio
 import numpy as np
 
+from coreason_identity.models import UserContext
+
 from .interfaces import EmbeddingService, Forager, MCPClient
 from .models import Document, SynthesisTemplate
 
@@ -43,7 +45,7 @@ class ForagerImpl(Forager):
         self.embedder = embedder
 
     async def forage(
-        self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10
+        self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10
     ) -> List[Document]:
         """Retrieves documents based on the synthesis template's centroid.
 

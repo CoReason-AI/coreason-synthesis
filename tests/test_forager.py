@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from coreason_identity.models import UserContext
 from coreason_synthesis.forager import ForagerImpl
 from coreason_synthesis.interfaces import EmbeddingService, MCPClient
 from coreason_synthesis.models import Document, SynthesisTemplate
@@ -57,7 +58,8 @@ async def test_forage_basic_flow(
     ]
 
     # Act
-    results = await forager.forage(sample_template, {}, limit=2)
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await forager.forage(sample_template, user_context, limit=2)
 
     # Assert
     assert len(results) == 2
@@ -100,7 +102,8 @@ async def test_mmr_diversity(
     # Let's retry with simpler mental model or just verify it runs.
 
     # Actually, we just want to verify MMR logic is executed.
-    results = await forager.forage(sample_template, {}, limit=2)
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await forager.forage(sample_template, user_context, limit=2)
 
     assert len(results) == 2
     assert results[0].content == "A"  # Best relevance first
@@ -116,7 +119,8 @@ async def test_empty_mcp_results(
     sample_template: SynthesisTemplate,
 ) -> None:
     mock_mcp.search.return_value = []
-    results = await forager.forage(sample_template, {}, limit=10)
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await forager.forage(sample_template, user_context, limit=10)
     assert results == []
 
 
@@ -128,7 +132,8 @@ async def test_missing_centroid(forager: ForagerImpl) -> None:
         domain="D",
         embedding_centroid=[],  # Empty
     )
-    results = await forager.forage(template_no_centroid, {}, limit=10)
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await forager.forage(template_no_centroid, user_context, limit=10)
     assert results == []
 
 
@@ -162,9 +167,10 @@ async def test_mmr_cluster_selection(
     # Should fetch 2*5 = 10 from MCP? No, param says fetch_limit = limit * 5
     # forager calls search with fetch_limit.
 
-    await forager.forage(sample_template, {}, limit=2)
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    await forager.forage(sample_template, user_context, limit=2)
 
-    mock_mcp.search.assert_awaited_with(sample_template.embedding_centroid, {}, 10)
+    mock_mcp.search.assert_awaited_with(sample_template.embedding_centroid, user_context, 10)
 
 
 @pytest.mark.asyncio
@@ -204,5 +210,6 @@ async def test_forage_zero_limit(
     mock_mcp: AsyncMock,
     sample_template: SynthesisTemplate,
 ) -> None:
-    results = await forager.forage(sample_template, {}, limit=0)
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await forager.forage(sample_template, user_context, limit=0)
     assert results == []

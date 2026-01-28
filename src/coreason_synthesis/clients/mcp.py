@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from coreason_identity.models import UserContext
 from coreason_synthesis.interfaces import MCPClient
 from coreason_synthesis.models import Document
 
@@ -64,7 +65,7 @@ class HttpMCPClient(MCPClient):
         if self._internal_client:
             await self._client.aclose()
 
-    async def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+    async def search(self, query_vector: List[float], user_context: UserContext, limit: int) -> List[Document]:
         """Searches the MCP for relevant documents.
 
         Args:
@@ -78,7 +79,7 @@ class HttpMCPClient(MCPClient):
         Raises:
             httpx.HTTPError: If the API request fails.
         """
-        payload = {"vector": query_vector, "context": user_context, "limit": limit}
+        payload = {"vector": query_vector, "context": user_context.model_dump(mode="json"), "limit": limit}
 
         try:
             response = await self._client.post(f"{self.base_url}/search", json=payload)

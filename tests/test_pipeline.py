@@ -15,6 +15,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from coreason_identity.models import UserContext
 from coreason_synthesis.interfaces import (
     Appraiser,
     Compositor,
@@ -137,7 +138,7 @@ async def test_pipeline_async_happy_path(
     async_mock_components["appraiser"].appraise.side_effect = lambda cases, t, sort_by, min_validity_score: cases
 
     config: Dict[str, Any] = {"target_count": 5, "perturbation_rate": 0.0}
-    user_context: Dict[str, Any] = {"user": "test"}
+    user_context = UserContext(sub="test_user", email="test@example.com")
 
     results = await pipeline_async.run(sample_seeds, config, user_context)
 
@@ -168,7 +169,7 @@ def test_pipeline_sync_wrapper(
     async_mock_components["forager"].forage.return_value = []
 
     config: Dict[str, Any] = {"target_count": 5}
-    user_context: Dict[str, Any] = {"user": "test"}
+    user_context = UserContext(sub="test_user", email="test@example.com")
 
     results = pipeline_sync.run(sample_seeds, config, user_context)
 
@@ -210,7 +211,8 @@ async def test_pipeline_async_perturbation(
     # Force perturbation
     config: Dict[str, Any] = {"perturbation_rate": 1.1}
 
-    results = await pipeline_async.run(sample_seeds, config, {})
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await pipeline_async.run(sample_seeds, config, user_context)
 
     # Verify perturbator called
     async_mock_components["perturbator"].perturb.assert_awaited_once_with(base_case)
@@ -224,7 +226,8 @@ async def test_pipeline_async_perturbation(
 async def test_pipeline_async_empty_seeds(
     pipeline_async: SynthesisPipelineAsync, async_mock_components: Dict[str, AsyncMock]
 ) -> None:
-    results = await pipeline_async.run([], {}, {})
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await pipeline_async.run([], {}, user_context)
     assert results == []
     async_mock_components["analyzer"].analyze.assert_not_called()
 
@@ -239,7 +242,8 @@ async def test_pipeline_async_empty_forage(
     async_mock_components["analyzer"].analyze.return_value = sample_template
     async_mock_components["forager"].forage.return_value = []  # No docs
 
-    results = await pipeline_async.run(sample_seeds, {}, {})
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await pipeline_async.run(sample_seeds, {}, user_context)
 
     assert results == []
     async_mock_components["extractor"].extract.assert_not_called()
@@ -256,7 +260,8 @@ async def test_pipeline_async_empty_extract(
     async_mock_components["forager"].forage.return_value = [Document(content="D", source_urn="u")]
     async_mock_components["extractor"].extract.return_value = []  # No slices
 
-    results = await pipeline_async.run(sample_seeds, {}, {})
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    results = await pipeline_async.run(sample_seeds, {}, user_context)
 
     assert results == []
     async_mock_components["compositor"].composite.assert_not_called()
@@ -273,8 +278,9 @@ async def test_pipeline_async_exception_propagation(
     """
     async_mock_components["analyzer"].analyze.side_effect = ValueError("Analysis Failed")
 
+    user_context = UserContext(sub="test_user", email="test@example.com")
     with pytest.raises(ValueError, match="Analysis Failed"):
-        await pipeline_async.run(sample_seeds, {}, {})
+        await pipeline_async.run(sample_seeds, {}, user_context)
 
 
 @pytest.mark.asyncio
