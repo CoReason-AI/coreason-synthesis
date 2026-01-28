@@ -8,10 +8,11 @@
 #
 # Source Code: https://github.com/CoReason-AI/coreason_synthesis
 
-from typing import Any, List, Optional, Type, TypeVar
+from typing import List, Optional, Type, TypeVar
 from uuid import uuid4
 
 import pytest
+from coreason_identity.models import UserContext
 from pydantic import BaseModel
 
 from coreason_synthesis.interfaces import (
@@ -96,7 +97,7 @@ def test_concrete_implementations() -> None:
 
     class ConcreteForager(Forager):
         async def forage(
-            self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10
+            self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10
         ) -> List[Document]:
             return [Document(content="c", source_urn="u")]
 
@@ -158,7 +159,7 @@ async def test_workflow_simulation() -> None:
 
     class MockForager(Forager):
         async def forage(
-            self, template: SynthesisTemplate, user_context: dict[str, Any], limit: int = 10
+            self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10
         ) -> List[Document]:
             assert template.domain == "Finance"
             return [Document(content="Financial Report 2024...", source_urn="http://example.com/report")]
@@ -214,7 +215,8 @@ async def test_workflow_simulation() -> None:
     assert isinstance(template, SynthesisTemplate)
 
     # Step B: Forage
-    documents = await forager.forage(template, user_context={})
+    user_context = UserContext(sub="test_user", email="test@example.com")
+    documents = await forager.forage(template, user_context=user_context)
     assert isinstance(documents[0], Document)
 
     # Step C: Extract

@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 import respx
+from coreason_identity.models import UserContext
 
 from coreason_synthesis.clients.mcp import HttpMCPClient
 from coreason_synthesis.models import Document
@@ -29,7 +30,8 @@ class TestHttpMCPClient:
         mock_resp = {"results": [{"content": "C", "source_urn": "U", "metadata": {}}]}
         respx.post("http://test.mcp/search").mock(return_value=httpx.Response(200, json=mock_resp))
 
-        docs = await client.search([0.1], {}, 10)
+        user_context = UserContext(sub="test_user", email="test@example.com")
+        docs = await client.search([0.1], user_context, 10)
         assert len(docs) == 1
         assert isinstance(docs[0], Document)
         assert docs[0].content == "C"
@@ -39,8 +41,9 @@ class TestHttpMCPClient:
     async def test_search_failure(self, client: HttpMCPClient) -> None:
         respx.post("http://test.mcp/search").mock(return_value=httpx.Response(500))
 
+        user_context = UserContext(sub="test_user", email="test@example.com")
         with pytest.raises(httpx.HTTPStatusError):
-            await client.search([0.1], {}, 10)
+            await client.search([0.1], user_context, 10)
 
     @respx.mock  # type: ignore[misc]
     @pytest.mark.asyncio

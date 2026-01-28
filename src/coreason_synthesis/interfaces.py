@@ -16,8 +16,9 @@ Pattern-Forage-Fabricate-Rank architecture described in the PRD.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import List, Optional, Type, TypeVar
 
+from coreason_identity.models import UserContext
 from pydantic import BaseModel
 
 from .models import (
@@ -96,7 +97,7 @@ class MCPClient(ABC):
     """
 
     @abstractmethod
-    async def search(self, query_vector: List[float], user_context: Dict[str, Any], limit: int) -> List[Document]:
+    async def search(self, query_vector: List[float], user_context: UserContext, limit: int) -> List[Document]:
         """Searches the MCP for relevant documents using a vector query.
 
         Args:
@@ -140,9 +141,7 @@ class Forager(ABC):
     """
 
     @abstractmethod
-    async def forage(
-        self, template: SynthesisTemplate, user_context: Dict[str, Any], limit: int = 10
-    ) -> List[Document]:
+    async def forage(self, template: SynthesisTemplate, user_context: UserContext, limit: int = 10) -> List[Document]:
         """Retrieves documents based on the synthesis template's centroid.
 
         Args:
